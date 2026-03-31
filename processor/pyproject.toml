@@ -1,0 +1,12 @@
+[project]
+name = "processor"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.1",
+    "psycopg2-binary>=2.9",
+    "pymongo>=4.6",
+    "snowflake-connector-python>=3.5",
+    "python-dotenv>=1.0",
+    "sqlalchemy>=2.0",
+]

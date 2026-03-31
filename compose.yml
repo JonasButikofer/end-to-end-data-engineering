@@ -1,0 +1,138 @@
+services:
+
+  # =========================================================================
+  # Milestone 1: Data Sources and ETL
+  # =========================================================================
+
+  mongo:
+    container_name: mongo
+    image: mongo:latest
+    volumes:
+      - mongo_data:/data/db
+    restart: on-failure
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    command: ["mongod", "--quiet"]
+
+  adminer:
+    image: adminer:latest
+    container_name: adminer
+    restart: on-failure
+    ports:
+      - 8080:8080
+
+  postgres:
+    image: postgres:17
+    container_name: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: transactions
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./processor/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-q", "-d", "transactions", "-U", "postgres" ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  generator:
+    image: davidwilson175/adventure-generator
+    container_name: generator
+    environment:
+      - GENERATION_INTERVAL_SEC=10
+      - ORDER_BATCH_SIZE=50
+      - GENERATION_MAX_RUNTIME_SEC=3600
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      mongo:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  # processor:
+  #   build: processor/.
+  #   env_file:
+  #     - ./processor/.env.docker
+  #   container_name: processor
+  #   environment:
+  #     - PYTHONUNBUFFERED=1
+  #   depends_on:
+  #     mongo:
+  #       condition: service_healthy
+  #     postgres:
+  #       condition: service_healthy
+  #   command: ["uv", "run", "python", "main.py", "--env", ".env.docker"]
+
+  # =========================================================================
+  # Milestone 2: Prefect Orchestration (uncomment when you reach Milestone 2)
+  # =========================================================================
+
+  # prefect-server:
+  #   image: prefecthq/prefect:2-latest
+  #   container_name: prefect-server
+  #   ports:
+  #     - "4200:4200"
+  #   environment:
+  #     - PREFECT_SERVER_API_HOST=0.0.0.0
+  #     - PREFECT_API_URL=http://prefect-server:4200/api
+  #   command: ["prefect", "server", "start"]
+  #   healthcheck:
+  #     test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4200/api/health')"]
+  #     interval: 15s
+  #     timeout: 10s
+  #     retries: 5
+  #     start_period: 30s
+  #   restart: on-failure
+
+  # prefect-worker:
+  #   image: prefecthq/prefect:2-latest
+  #   container_name: prefect-worker
+  #   environment:
+  #     - PREFECT_API_URL=http://prefect-server:4200/api
+  #   command: ["prefect", "worker", "start", "-n", "is566-worker", "--pool", "is566-pool", "--type", "process"]
+  #   depends_on:
+  #     prefect-server:
+  #       condition: service_healthy
+  #   restart: on-failure
+
+  # web-analytics-flow:
+  #   build: ./prefect
+  #   container_name: web-analytics-flow
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     - PREFECT_API_URL=http://prefect-server:4200/api
+  #     - PYTHONUNBUFFERED=1
+  #   depends_on:
+  #     prefect-server:
+  #       condition: service_healthy
+  #   restart: on-failure
+
+  # =========================================================================
+  # Milestone 3: dbt MCP Server
+  # =========================================================================
+  # The dbt MCP server runs LOCALLY (not in Docker). Start it from the dbt/
+  # directory so that lineage tools can find target/manifest.json:
+  #
+  #   cd dbt
+  #   MCP_TRANSPORT=sse \
+  #   DBT_PROJECT_DIR=. \
+  #   DBT_PROFILES_DIR=. \
+  #   uvx dbt-mcp
+  #
+  # The server listens on http://localhost:8000/sse
+  # See templates/m3/mcp_setup.md for full setup instructions.
+
+volumes:
+  mongo_data:
+  postgres_data:

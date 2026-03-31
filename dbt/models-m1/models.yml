@@ -1,0 +1,39 @@
+models:
+  - name: stg_adventure_db__customers
+    columns:
+      - name: customer_id
+        data_tests:
+          - unique
+          - not_null
+      - name: first_name
+        data_tests:
+          - not_null
+
+  - name: stg_adventure_db__inventory
+
+  - name: stg_adventure_db__vendors
+
+  - name: stg_ecom__email_campaigns
+    columns:
+      - name: event_id
+        data_tests:
+          - unique
+      - name: event_type
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['email_opened','add_to_cart','conversion', 'email_clicked']
+      - name: customer_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_adventure_db__customers')
+                field: customer_id
+      - name: order_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_ecom__sales_orders')
+                field: sales_order_id
+
+  - name: stg_adventure_db__products

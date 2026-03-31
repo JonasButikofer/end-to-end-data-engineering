@@ -1,0 +1,16 @@
+version: 2
+
+seeds:
+  - name: measures
+    config:
+      column_types:
+        measure_code: STRING
+        measure_name: STRING
+
+  - name: ship_method
+    config:
+      column_types:
+        ship_method_id: INTEGER
+        name: STRING
+        ship_base: NUMBER
+        ship_rate: NUMBER
