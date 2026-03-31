@@ -111,7 +111,7 @@ Fill in `templates/m2/agent_log_template.md` as you go. Note:
 
 **Be specific about error handling.** Don't say "add error handling." Say "wrap the API call in a try/except. On HTTP 429, read the Retry-After header and wait. On timeout, retry with exponential backoff (2, 4, 8 seconds). After 3 failures, raise a RuntimeError."
 
-**Provide example input and output.** "The API returns this JSON: [paste example]. I need to produce a pandas DataFrame with these columns: [list]. Rows with null customer_id should go into a separate failed_records list."
+**Provide example input and output.** "The API returns this JSON: [paste example]. I need to produce a pandas DataFrame with these columns: [list]. Rows with null customer_id should be dropped and logged."
 
 **Ask the agent to explain its choices.** "Why did you use `pd.to_numeric(errors='coerce')` here instead of `int()`?" This helps you learn and catches cases where the agent made a bad assumption.
 

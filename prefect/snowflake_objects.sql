@@ -20,11 +20,3 @@ CREATE TABLE IF NOT EXISTS RAW_EXT.web_analytics_raw (
     _loaded_at        TIMESTAMP_NTZ  DEFAULT CURRENT_TIMESTAMP(),
     _file_name        VARCHAR(255)
 );
-
--- 3. Create the quarantine (dead-letter) table for records that fail validation
-CREATE TABLE IF NOT EXISTS RAW_EXT.web_analytics_quarantine (
-    raw_record      VARIANT,
-    error_message   VARCHAR(500),
-    error_type      VARCHAR(50),
-    attempted_at    TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
-);
