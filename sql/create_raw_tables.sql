@@ -4,9 +4,9 @@
 -- Run these statements in your Snowflake worksheet.
 -- Make sure you've set your database, schema, and warehouse first:
 --
---   USE WAREHOUSE <your_warehouse>;
---   USE DATABASE <your_database>;
---   USE SCHEMA RAW_EXT;
+  USE WAREHOUSE boa_wh;
+  USE DATABASE boa_db;
+  USE SCHEMA RAW_EXT;
 --
 -- The processor will automatically create the stages (orders_stage,
 -- order_details_stage, chat_stage) when it runs, so you only need

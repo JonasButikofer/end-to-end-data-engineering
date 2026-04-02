@@ -59,19 +59,19 @@ services:
       postgres:
         condition: service_healthy
 
-  # processor:
-  #   build: processor/.
-  #   env_file:
-  #     - ./processor/.env.docker
-  #   container_name: processor
-  #   environment:
-  #     - PYTHONUNBUFFERED=1
-  #   depends_on:
-  #     mongo:
-  #       condition: service_healthy
-  #     postgres:
-  #       condition: service_healthy
-  #   command: ["uv", "run", "python", "main.py", "--env", ".env.docker"]
+  processor:
+    build: processor/.
+    env_file:
+      - ./processor/.env.docker
+    container_name: processor
+    environment:
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      mongo:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    command: ["uv", "run", "python", "main.py", "--env", ".env.docker"]
 
   # =========================================================================
   # Milestone 2: Prefect Orchestration (uncomment when you reach Milestone 2)

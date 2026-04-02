@@ -45,13 +45,49 @@ def copy_stage_to_table(stage_name, table_name, file_format="CSV", connection=No
     Returns:
         dict with keys: rows_copied, rows_skipped, execution_time_sec, status, error_message
     """
-    # TODO: Implement COPY INTO logic
-    # - Execute a COPY INTO command from @{stage_name}/ into {table_name}
-    # - Handle both CSV and JSON file formats
-    # - Parse the COPY INTO result to count rows copied/skipped
-    # - Return a metrics dict matching the signature above
-    # - Handle errors gracefully (set status="error" with error_message)
-    raise NotImplementedError("Implement copy_stage_to_table")
+    start = time.time()
+    try:
+        cs = connection.cursor()
+        if file_format.upper() == "CSV":
+            sql = f"""
+                COPY INTO {table_name}
+                FROM @{stage_name}/
+                FILE_FORMAT = (
+                    TYPE = 'CSV'
+                    FIELD_OPTIONALLY_ENCLOSED_BY = '"'
+                    SKIP_HEADER = 1
+                    NULL_IF = ('')
+                )
+                ON_ERROR = 'CONTINUE'
+            """
+        else:
+            sql = f"""
+                COPY INTO {table_name}
+                FROM @{stage_name}/
+                FILE_FORMAT = (TYPE = 'JSON' STRIP_OUTER_ARRAY = FALSE)
+                MATCH_BY_COLUMN_NAME = NONE
+                ON_ERROR = 'CONTINUE'
+            """
+        cs.execute(sql)
+        rows = cs.fetchall()
+        rows_copied = sum(r[3] for r in rows if r[3] is not None)
+        rows_skipped = sum(r[4] for r in rows if r[4] is not None)
+        cs.close()
+        return {
+            "rows_copied": rows_copied,
+            "rows_skipped": rows_skipped,
+            "execution_time_sec": round(time.time() - start, 2),
+            "status": "success",
+            "error_message": None,
+        }
+    except Exception as e:
+        return {
+            "rows_copied": 0,
+            "rows_skipped": 0,
+            "execution_time_sec": round(time.time() - start, 2),
+            "status": "error",
+            "error_message": str(e),
+        }
 
 
 def clean_stage(stage_name, connection=None):
@@ -65,8 +101,22 @@ def clean_stage(stage_name, connection=None):
     Returns:
         dict with keys: files_removed, execution_time_sec, status, error_message
     """
-    # TODO: Implement stage cleanup logic
-    # - Execute REMOVE @{stage_name}/ to delete staged files
-    # - Count how many files were removed
-    # - Return a metrics dict matching the signature above
-    raise NotImplementedError("Implement clean_stage")
+    start = time.time()
+    try:
+        cs = connection.cursor()
+        cs.execute(f"REMOVE @{stage_name}/")
+        rows = cs.fetchall()
+        cs.close()
+        return {
+            "files_removed": len(rows),
+            "execution_time_sec": round(time.time() - start, 2),
+            "status": "success",
+            "error_message": None,
+        }
+    except Exception as e:
+        return {
+            "files_removed": 0,
+            "execution_time_sec": round(time.time() - start, 2),
+            "status": "error",
+            "error_message": str(e),
+        }
