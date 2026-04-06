@@ -54,6 +54,44 @@ renamed as (
     left join ship_methods s
     on b.ship_method_id = s.ship_method_id
 
+),
+
+real_time as (
+
+    select
+        rt.sales_order_id,
+        rt.customer_id,
+        rt.account_number,
+        rt.bill_to_address_id,
+        rt.comment,
+        rt.credit_card_approval_code,
+        rt.credit_card_id,
+        rt.currency_rate_id,
+        null                        as delivery_estimate_days,
+        rt.due_date,
+        rt.freight,
+        rt.modified_date,
+        rt.online_order_flag,
+        rt.order_date,
+        rt.order_details,
+        rt.purchase_order_number,
+        rt.revision_number,
+        rt.sales_order_number,
+        rt.sales_person_id,
+        rt.ship_date,
+        s.name                      as shipping_method,
+        rt.ship_to_address_id,
+        rt.status,
+        rt.sub_total,
+        rt.tax_amt,
+        rt.territory_id,
+        rt.total_due
+    from {{ ref('base_real_time__sales_orders') }} rt
+    left join ship_methods s
+        on rt.ship_method_id = s.ship_method_id
+
 )
 
 select * from renamed
+union all
+select * from real_time

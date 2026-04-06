@@ -22,3 +22,10 @@ sources:
     schema: "{{ 'new_mktg_dev' if target.name == 'dev' else 'new_mktg_prod' }}"
     tables:
       - name: email_mktg_raw
+  - name: real_time
+    database: BOA_DB
+    schema: RAW_EXT
+    tables:
+      - name: orders_raw
+      - name: order_details_raw
+      - name: chat_logs_raw
