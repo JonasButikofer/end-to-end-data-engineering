@@ -50,7 +50,7 @@ services:
     container_name: generator
     environment:
       - GENERATION_INTERVAL_SEC=10
-      - ORDER_BATCH_SIZE=50
+      - ORDER_BATCH_SIZE=5000
       - GENERATION_MAX_RUNTIME_SEC=3600
       - PYTHONUNBUFFERED=1
     depends_on:
