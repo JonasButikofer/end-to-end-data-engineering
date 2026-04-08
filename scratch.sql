@@ -29,3 +29,15 @@ Group by country_region, order_date;
 
 
 select * from BOA_DB.DBT_DEV.INT_SALES_ORDER_WITH_CUSTOMERS limit 5;
+
+
+SELECT * FROM BOA_DB.RAW_EXT.web_analytics_raw limit 10;
+
+
+SHOW TABLES IN SCHEMA RAW_EXT;
+SHOW STAGES IN SCHEMA RAW_EXT;
+
+
+
+SELECT COUNT(*) FROM dbt_dev.stg_web_analytics;
+SELECT * FROM dbt_dev.int_web_analytics_with_customers LIMIT 10;

@@ -77,46 +77,46 @@ services:
   # Milestone 2: Prefect Orchestration (uncomment when you reach Milestone 2)
   # =========================================================================
 
-  # prefect-server:
-  #   image: prefecthq/prefect:2-latest
-  #   container_name: prefect-server
-  #   ports:
-  #     - "4200:4200"
-  #   environment:
-  #     - PREFECT_SERVER_API_HOST=0.0.0.0
-  #     - PREFECT_API_URL=http://prefect-server:4200/api
-  #   command: ["prefect", "server", "start"]
-  #   healthcheck:
-  #     test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4200/api/health')"]
-  #     interval: 15s
-  #     timeout: 10s
-  #     retries: 5
-  #     start_period: 30s
-  #   restart: on-failure
+  prefect-server:
+    image: prefecthq/prefect:2-latest
+    container_name: prefect-server
+    ports:
+      - "4200:4200"
+    environment:
+      - PREFECT_SERVER_API_HOST=0.0.0.0
+      - PREFECT_API_URL=http://prefect-server:4200/api
+    command: ["prefect", "server", "start"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4200/api/health')"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: on-failure
 
-  # prefect-worker:
-  #   image: prefecthq/prefect:2-latest
-  #   container_name: prefect-worker
-  #   environment:
-  #     - PREFECT_API_URL=http://prefect-server:4200/api
-  #   command: ["prefect", "worker", "start", "-n", "is566-worker", "--pool", "is566-pool", "--type", "process"]
-  #   depends_on:
-  #     prefect-server:
-  #       condition: service_healthy
-  #   restart: on-failure
+  prefect-worker:
+    image: prefecthq/prefect:2-latest
+    container_name: prefect-worker
+    environment:
+      - PREFECT_API_URL=http://prefect-server:4200/api
+    command: ["prefect", "worker", "start", "-n", "is566-worker", "--pool", "is566-pool", "--type", "process"]
+    depends_on:
+      prefect-server:
+        condition: service_healthy
+    restart: on-failure
 
-  # web-analytics-flow:
-  #   build: ./prefect
-  #   container_name: web-analytics-flow
-  #   env_file:
-  #     - .env
-  #   environment:
-  #     - PREFECT_API_URL=http://prefect-server:4200/api
-  #     - PYTHONUNBUFFERED=1
-  #   depends_on:
-  #     prefect-server:
-  #       condition: service_healthy
-  #   restart: on-failure
+  web-analytics-flow:
+    build: ./prefect
+    container_name: web-analytics-flow
+    env_file:
+      - .env.dev
+    environment:
+      - PREFECT_API_URL=http://prefect-server:4200/api
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      prefect-server:
+        condition: service_healthy
+    restart: on-failure
 
   # =========================================================================
   # Milestone 3: dbt MCP Server

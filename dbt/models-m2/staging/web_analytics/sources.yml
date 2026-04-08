@@ -1,0 +1,43 @@
+version: 2
+
+sources:
+  - name: web_analytics
+    database: boa_db
+    schema: RAW_EXT
+    tables:
+      - name: web_analytics_raw
+        description: "Raw clickstream events loaded by the Prefect web analytics flow from the Adventure Works web analytics API."
+        loaded_at_field: event_timestamp
+        freshness:
+          warn_after: {count: 12, period: hour}
+          error_after: {count: 24, period: hour}
+        columns:
+          - name: customer_id
+            description: "Integer customer ID. Joins to stg_adventure_db__customers."
+            data_tests:
+              - not_null
+          - name: product_id
+            description: "Integer product ID. Joins to stg_adventure_db__products."
+            data_tests:
+              - not_null
+          - name: session_id
+            description: "Unique browsing session identifier (sess_ + 12 hex chars). One customer may have multiple sessions."
+            data_tests:
+              - not_null
+          - name: page_url
+            description: "URL of the page visited during the event."
+          - name: event_type
+            description: "Type of clickstream event."
+            data_tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: ['page_view', 'click', 'add_to_cart', 'purchase']
+          - name: event_timestamp
+            description: "UTC timestamp of when the event occurred. Used as the watermark for incremental extraction."
+            data_tests:
+              - not_null
+          - name: _loaded_at
+            description: "Timestamp when the row was loaded into Snowflake by the COPY INTO command."
+          - name: _file_name
+            description: "Name of the staged CSV file this row was loaded from."

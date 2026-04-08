@@ -1,0 +1,37 @@
+version: 2
+
+models:
+  - name: stg_web_analytics
+    description: "Staged clickstream events from the web analytics API. One row per event."
+    columns:
+      - name: customer_id
+        description: "Integer customer ID. Joins to stg_adventure_db__customers."
+        data_tests:
+          - not_null
+      - name: product_id
+        description: "Integer product ID. Joins to stg_adventure_db__products."
+        data_tests:
+          - not_null
+      - name: session_id
+        description: "Unique browsing session identifier."
+        data_tests:
+          - not_null
+      - name: page_url
+        description: "URL of the page visited."
+      - name: event_type
+        description: "Type of clickstream event."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['page_view', 'click', 'add_to_cart', 'purchase']
+      - name: event_timestamp
+        description: "UTC timestamp of when the event occurred."
+        data_tests:
+          - not_null
+      - name: loaded_at
+        description: "When the row was loaded into Snowflake by COPY INTO."
+      - name: file_name
+        description: "Staged CSV file this row was loaded from."
+      - name: dbt_loaded_at
+        description: "Timestamp when dbt last materialized this model."
