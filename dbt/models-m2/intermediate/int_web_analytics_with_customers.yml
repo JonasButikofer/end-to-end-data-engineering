@@ -1,0 +1,41 @@
+version: 2
+
+models:
+  - name: int_web_analytics_with_customers
+    description: >
+      Enriches web analytics clickstream events with customer geography and contact attributes
+      from the AdventureWorks customer dimension. One row per clickstream event (event grain
+      preserved). Events without a matching customer are kept via left join.
+    columns:
+      - name: session_id
+        description: "Unique browsing session identifier."
+        data_tests:
+          - not_null
+      - name: customer_id
+        description: "Integer customer ID from the clickstream event."
+        data_tests:
+          - not_null
+      - name: product_id
+        description: "Product ID associated with the event."
+      - name: page_url
+        description: "URL of the page visited."
+      - name: event_type
+        description: "Type of clickstream event (page_view, click, add_to_cart, purchase)."
+      - name: event_timestamp
+        description: "UTC timestamp of when the event occurred."
+      - name: loaded_at
+        description: "Timestamp when the row was loaded into Snowflake."
+      - name: dbt_loaded_at
+        description: "Timestamp when the dbt model was last built."
+      - name: customer_name
+        description: "Full name of the customer from stg_adventure_db__customers."
+      - name: customer_email
+        description: "Email address of the customer."
+      - name: customer_city
+        description: "City from the customer record."
+      - name: customer_state
+        description: "State or province from the customer record."
+      - name: customer_country
+        description: "Country or region from the customer record."
+      - name: customer_postal_code
+        description: "Postal code from the customer record."
