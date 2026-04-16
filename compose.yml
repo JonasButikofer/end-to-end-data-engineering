@@ -121,17 +121,21 @@ services:
   # =========================================================================
   # Milestone 3: dbt MCP Server
   # =========================================================================
-  # The dbt MCP server runs LOCALLY (not in Docker). Start it from the dbt/
-  # directory so that lineage tools can find target/manifest.json:
-  #
-  #   cd dbt
-  #   MCP_TRANSPORT=sse \
-  #   DBT_PROJECT_DIR=. \
-  #   DBT_PROFILES_DIR=. \
-  #   uvx dbt-mcp
-  #
-  # The server listens on http://localhost:8000/sse
-  # See templates/m3/mcp_setup.md for full setup instructions.
+
+  dbt-mcp:
+    build: ./dbt
+    container_name: dbt-mcp
+    env_file:
+      - .env.dev
+    ports:
+      - "8000:8000"
+    environment:
+      - MCP_TRANSPORT=sse
+      - DBT_PROJECT_DIR=.
+      - DBT_PROFILES_DIR=.
+      - FASTMCP_HOST=0.0.0.0
+      - PYTHONUNBUFFERED=1
+    restart: on-failure
 
 volumes:
   mongo_data:
