@@ -6,22 +6,7 @@
 
 ## Architecture
 
-<!-- 
-  Replace this section with your architecture diagram. Options:
-  1. Embed a Mermaid diagram (GitHub renders it natively) — see the example below
-  2. Include an image: ![Architecture](screenshots/architecture.png)
-  
-  Your diagram should show:
-  - All data sources (PostgreSQL, MongoDB, REST API)
-  - Extract & ingest layer (ETL processor, Snowflake stages)
-  - Orchestration (Prefect)
-  - Raw layer
-  - Transformation layers (dbt staging, intermediate)
-  - Quality & CI/CD (dbt tests, dbt Cloud)
-  - Analytics & access (dashboards, MCP server)
--->
-
-
+```mermaid
 flowchart TD
     subgraph Sources["Source Systems"]
         PG[(PostgreSQL\nAdventure DB)]
@@ -71,7 +56,7 @@ flowchart TD
     INT --> MCP
     CLOUD -.->|triggers| Transform
     PREFECT -.->|schedules| Ingest
-
+```
 
 **Caption:** [TODO: Write a 1-2 sentence caption explaining the end-to-end flow shown in the diagram.]
 
