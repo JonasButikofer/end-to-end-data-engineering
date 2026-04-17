@@ -21,6 +21,58 @@
   - Analytics & access (dashboards, MCP server)
 -->
 
+
+flowchart TD
+    subgraph Sources["Source Systems"]
+        PG[(PostgreSQL\nAdventure DB)]
+        MG[(MongoDB\nE-commerce)]
+        API[REST API\nReal-time Orders]
+    end
+
+    subgraph Ingest["Extract & Load"]
+        ETL[Python ETL Processor\nwatermark-based]
+        STAGE[Snowflake Stages\n+ COPY INTO]
+    end
+
+    subgraph Raw["Raw Layer (Snowflake)"]
+        RAW_S[adventure_db.*]
+        RAW_E[ecom.*]
+        RAW_RT[real_time.*]
+    end
+
+    subgraph Transform["dbt Transformation"]
+        BASE[Base Models\nparse VARIANT JSON]
+        STG[Staging Models\ncast · rename · clean]
+        INT[Intermediate Models\ncross-source joins]
+    end
+
+    subgraph Quality["Quality & CI/CD"]
+        TESTS[28 dbt Tests\nnot_null · unique · relationships]
+        CLOUD[dbt Cloud\nscheduled runs · PR checks]
+    end
+
+    subgraph Serve["Serving Layer"]
+        DASH[Dashboards]
+        MCP[dbt MCP Server\nSSE on :8000]
+    end
+
+    PREFECT[Prefect Orchestration]
+
+    PG --> ETL
+    MG --> ETL
+    API --> ETL
+    ETL --> STAGE
+    STAGE --> RAW_S & RAW_E & RAW_RT
+    RAW_S & RAW_E & RAW_RT --> BASE
+    BASE --> STG
+    STG --> INT
+    INT --> TESTS
+    INT --> DASH
+    INT --> MCP
+    CLOUD -.->|triggers| Transform
+    PREFECT -.->|schedules| Ingest
+
+
 **Caption:** [TODO: Write a 1-2 sentence caption explaining the end-to-end flow shown in the diagram.]
 
 ---
