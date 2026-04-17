@@ -40,4 +40,19 @@ SHOW STAGES IN SCHEMA RAW_EXT;
 
 
 SELECT COUNT(*) FROM dbt_dev.stg_web_analytics;
-SELECT * FROM dbt_dev.int_web_analytics_with_customers LIMIT 10;
+select * from dbt_dev.int_sales_orders_with_campaigns limit 10;I
+
+
+SELECT * FROM boa_db.dbt_dev.INT_SALES_ORDERS_WITH_CAMPAIGN LIMIT 10;
+
+select * from boa_db.dbt_dev.stg_real_time__chat_logs limit 5;
+
+
+
+
+
+SELECT DISTINCT ticket_status FROM dbt_dev.stg_real_time__chat_logs;
+SELECT DISTINCT ticket_type   FROM dbt_dev.stg_real_time__chat_logs;
+SELECT DISTINCT ticket_subject FROM dbt_dev.stg_real_time__chat_logs;
+SELECT DISTINCT customer_segment FROM dbt_dev.stg_ecom__email_campaigns;
+SELECT DISTINCT ad_strategy      FROM dbt_dev.stg_ecom__email_campaigns;

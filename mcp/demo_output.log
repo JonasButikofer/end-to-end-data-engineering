@@ -1,0 +1,114 @@
+dbt MCP Demo Output - 2026-04-16T20:08:30.963455
+============================================================
+
+[20:06:05] ============================================================
+[20:06:05] dbt MCP Server Demo — Adventure Works Pipeline
+[20:06:05] ============================================================
+[20:06:05] 
+[20:06:05] Step 1: Connecting to dbt MCP server...
+[20:06:05] Connected successfully!
+[20:06:05] 
+[20:06:05] Step 2: Listing available tools...
+[20:06:05]   12 tools available:
+[20:06:05]   - search_product_docs: Search the dbt product documentation at docs.getdbt.com for pages matching a query. Returns matching page titles, URLs, and descriptions ranked by relevance. Only returns metadata, not page content — use get_product_doc_pages with URLs from the results to retrieve full page content.
+[20:06:05]   - get_product_doc_pages: Retrieve the Markdown content of one or more dbt documentation pages from docs.getdbt.com. Pass a list of URLs or relative paths (e.g. from search_product_docs results). Up to 5 pages can be fetched per call; pages are fetched in parallel for speed. Pass the optional `query` parameter to retrieve only the most relevant sections of each page rather than the full content — this significantly reduces response size and is recommended when you already know what topic you are looking for.
+[20:06:05]   - build: The dbt build command will:
+[20:06:05]   - compile: dbt compile generates executable SQL from source model, test, and analysis files.
+[20:06:05]   - docs: The docs command is responsible for generating your project's documentation website.
+[20:06:05]   - list: List the resources in the your dbt project.
+[20:06:05]   - parse: The dbt parse command parses and validates the contents of your dbt project. If your project contains Jinja or YAML syntax errors, the command will fail.
+[20:06:05]   - run: dbt run executes compiled sql model files against the current target database. dbt connects to the target database and runs the relevant SQL required to materialize all data models using the specified materialization strategies. Models are run in the order defined by the dependency graph generated during compilation.
+[20:06:05]   - test: dbt test runs data tests defined on models, sources, snapshots, and seeds and unit tests defined on SQL models.
+[20:06:05]   - show: dbt show executes an arbitrary SQL statement against the database and returns the results. It is useful for debugging and inspecting data in your dbt project. If you are adding a limit be sure to use the `limit` argument and do not add a limit to the SQL query.
+[20:06:05]   - get_lineage_dev: get_lineage_dev
+[20:06:05]   - get_node_details_dev: Retrieves detailed information about a specific dbt node from the local development manifest using `dbt ls --output json`. Works for models, seeds, snapshots, sources, and other dbt resource types.
+[20:06:05] 
+[20:06:05] Step 3: Discovering dbt models with descriptions...
+[20:06:12]   Found 18 models:
+[20:06:18]   - base_ecom__email_campaigns: Base staging layer for the legacy email campaign source.
+[20:06:24]   - base_ecom__email_mktg_new: Base staging layer for the current email marketing platform.
+[20:06:29]   - base_ecom__sales_orders: Base staging layer for legacy sales orders from the e-commerce system.
+[20:06:35]   - base_real_time__sales_orders: Base staging layer for real-time sales orders loaded from PostgreSQL by the processor service.
+[20:06:41]   - int_sales_order_line_items: One row per line item within a sales order, produced by lateral-flattening the order_details VARIANT column from stg_ecom__sales_orders.
+[20:06:49]   - int_sales_order_with_customers: One row per sales order placed in the last 30 days, enriched with customer geography.
+[20:06:56]   - int_sales_orders_with_campaign: One row per sales order, enriched with campaign attribution metadata.
+[20:07:02]   - int_web_analytics_with_customers: Enriches web analytics clickstream events with customer geography and contact attributes from the AdventureWorks customer dimension.
+[20:07:08]   - stg_adventure_db__customers: One row per customer from the AdventureWorks production database.
+[20:07:14]   - stg_adventure_db__inventory: One row per product-location combination from the AdventureWorks warehouse system.
+[20:07:22]   - stg_adventure_db__product_vendors: One row per product-vendor relationship from the AdventureWorks procurement system.
+[20:07:30]   - stg_adventure_db__products: One row per currently active product from the AdventureWorks catalog.
+[20:07:37]   - stg_adventure_db__vendors: One row per vendor from the AdventureWorks production database.
+[20:07:45]   - stg_ecom__email_campaigns: One row per email marketing event (de-duplicated) from two campaign sources: the legacy old_mktg system and the new new_mktg system.
+[20:07:50]   - stg_ecom__purchase_orders: One row per purchase order from the legacy e-commerce system.
+[20:07:56]   - stg_ecom__sales_orders: One row per sales order, combining legacy e-commerce orders (from base_ecom__sales_orders) with real-time orders loaded from PostgreSQL (via base_real_time__sales_orders) using UNION ALL.
+[20:08:02]   - stg_real_time__chat_logs: One row per customer support ticket, parsed from the MongoDB chat_logs_raw VARIANT column.
+[20:08:08]   - stg_web_analytics: Staged clickstream events from the web analytics API.
+[20:08:08] 
+[20:08:08] Step 4: Full details for int_sales_orders_with_campaign...
+[20:08:14]   Model: int_sales_orders_with_campaign
+[20:08:14]   Description:
+[20:08:14]     One row per sales order, enriched with campaign attribution metadata. Built by left-joining stg_ecom__sales_orders to conversion events from stg_ecom__email_campaigns. Grain: one row per sales_order_id. Campaign columns (campaign_id, customer_segment, product_category, ad_strategy) are null when the order was not driven by a campaign. is_campaign_conversion is the key flag for campaign ROI analysis. This model feeds int_sales_order_with_customers, which powers the Snowsight sales dashboard.
+[20:08:14]   Columns (8):
+[20:08:14]     - sales_order_id: Primary key. Unique identifier for the sales order. Inherited from stg_ecom__sales_orders.
+
+[20:08:14]     - customer_id: Customer who placed the order. Foreign key to stg_adventure_db__customers.customer_id.
+
+[20:08:14]     - order_date: Timestamp when the order was placed, in UTC.
+[20:08:14]     - campaign_id: Composite campaign identifier (customer_segment~product_category~ad_strategy) from the attributed campaign conversion event. Null if this order was not attributed to a campaign.
+
+[20:08:14]     - customer_segment: Customer segment targeted by the campaign. Parsed from campaign_id. Null for non-campaign orders.
+
+[20:08:14]     - product_category: Product category promoted by the campaign. Parsed from campaign_id. Null for non-campaign orders.
+
+[20:08:14]     - ad_strategy: Advertising strategy used by the campaign. Parsed from campaign_id. Null for non-campaign orders.
+
+[20:08:14]     - is_campaign_conversion: 1 if this order is attributed to an email campaign conversion event, 0 otherwise. Primary flag for measuring campaign-driven revenue.
+
+[20:08:14]   Depends on:
+[20:08:14]     <- stg_ecom__sales_orders
+[20:08:14]     <- stg_ecom__email_campaigns
+[20:08:14] 
+[20:08:14] Step 5: Compiled SQL for int_sales_order_with_customers...
+[20:08:25]   Sample rows from int_sales_order_with_customers (70 lines):
+[20:08:25]     02:08:18  Running with dbt=1.11.8
+[20:08:25]     02:08:19  Registered adapter: snowflake=1.11.4
+[20:08:25]     02:08:20  Found 18 models, 2 analyses, 28 data tests, 2 seeds, 1 sql operation, 13 sources, 523 macros
+[20:08:25]     02:08:20  
+[20:08:25]     02:08:20  Concurrency: 4 threads (target='dev')
+[20:08:25]     02:08:20  
+[20:08:25]     {
+[20:08:25]       "show": [
+[20:08:25]         {
+[20:08:25]           "SALES_ORDER_ID": "ef4346bf-151f-47bb-8c53-7b9a78ced529",
+[20:08:25]           "ORDER_DATE": "2026-03-26T10:27:22",
+[20:08:25]           "TOTAL_DUE": 2699.9,
+[20:08:25]           "SUB_TOTAL": 2443.35,
+[20:08:25]           "CUSTOMER_ID": 13605.0,
+[20:08:25]           "CAMPAIGN_ID": null,
+[20:08:25]           "IS_CAMPAIGN_CONVERSION": 0,
+[20:08:25]           "COUNTRY_REGION": "France",
+[20:08:25]           "CITY": "Metz",
+[20:08:25]           "STATE_PROVINCE": "Moselle"
+[20:08:25]         },
+[20:08:25]         {
+[20:08:25]           "SALES_ORDER_ID": "cc076a16-184c-49a0-b8a9-139e8bfd31a4",
+[20:08:25]           "ORDER_DATE": "2026-03-26T22:57:45",
+[20:08:25]           "TOTAL_DUE": 2699.9,
+[20:08:25]           "SUB_TOTAL": 2443.35,
+[20:08:25]           "CUSTOMER_ID": 13521.0,
+[20:08:25]           "CAMPAIGN_ID": null,
+[20:08:25]           "IS_CAMPAIGN_CONVERSION": 0,
+[20:08:25]           "COUNTRY_REGION": "Australia",
+[20:08:25]           "CITY": "Cloverdale",
+[20:08:25]     ... (40 more lines)
+[20:08:25] 
+[20:08:25] Step 6: Lineage for int_sales_order_with_customers (depth=2)...
+[20:08:30]   Upstream (2 nodes):
+[20:08:30]     <- int_sales_orders_with_campaign
+[20:08:30]     <- stg_adventure_db__customers
+[20:08:30]   Downstream (0 nodes):
+[20:08:30]     (none — this is the final model in the pipeline)
+[20:08:30] 
+[20:08:30] ============================================================
+[20:08:30] Demo complete!
+[20:08:30] ============================================================

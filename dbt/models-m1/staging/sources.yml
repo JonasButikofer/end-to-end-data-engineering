@@ -2,30 +2,98 @@ version: 2
 
 sources:
   - name: adventure_db
+    description: >
+      AdventureWorks production database. The core operational system containing
+      customers, products, vendors, and inventory. Read-only source — never
+      written to by this pipeline.
     database: is566
     schema: adventure_prod_db
     tables:
       - name: inventory_prod_db
+        description: >
+          Raw inventory records from the AdventureWorks warehouse system.
+          One row per product-location combination. Staged into
+          stg_adventure_db__inventory.
       - name: customer_prod_db
+        description: >
+          Raw customer master records from AdventureWorks. Contains name,
+          email, address, and territory. Staged into
+          stg_adventure_db__customers, which is the customer dimension
+          used across the entire warehouse.
       - name: product_vendor_prod_db
+        description: >
+          Raw product-vendor relationship records. Maps which vendors
+          supply which products and their lead times. Staged into
+          stg_adventure_db__product_vendors.
       - name: product_prod_db
+        description: >
+          Raw product catalog from AdventureWorks. Contains product name,
+          number, list price, and sell dates. Staged into
+          stg_adventure_db__products.
       - name: vendor_prod_db
+        description: >
+          Raw vendor records from AdventureWorks. Contains vendor name,
+          credit rating, and active status. Staged into
+          stg_adventure_db__vendors.
+
   - name: ecom_source
+    description: >
+      Legacy e-commerce marketing system (old_mktg schema). Contains historical
+      email campaign events and sales order data before the migration to the
+      new marketing platform. Merged with new_mktg data in the staging layer.
     database: is566
     schema: old_mktg
     tables:
       - name: email_campaign_raw
+        description: >
+          Raw email campaign events from the legacy marketing system. Merged
+          with new_mktg.email_mktg_raw in stg_ecom__email_campaigns.
       - name: purchase_order_raw
+        description: >
+          Raw purchase order records from the legacy e-commerce system.
+          Staged into stg_ecom__purchase_orders.
       - name: sales_order_raw
+        description: >
+          Raw sales order records from the legacy e-commerce system including
+          the nested order_details VARIANT column. Staged into
+          stg_ecom__sales_orders and flattened in int_sales_order_line_items.
+
   - name: new_mktg
+    description: >
+      Current marketing platform. Schema switches between new_mktg_dev (dev
+      target) and new_mktg_prod (prod target). Campaign events here are merged
+      with ecom_source.email_campaign_raw in stg_ecom__email_campaigns.
     database: is566
     schema: "{{ 'new_mktg_dev' if target.name == 'dev' else 'new_mktg_prod' }}"
     tables:
       - name: email_mktg_raw
+        description: >
+          Raw email campaign events from the current marketing platform.
+          Merged with legacy campaign data in stg_ecom__email_campaigns.
+
   - name: real_time
+    description: >
+      Real-time operational data loaded into Snowflake by the Python processor
+      service running in Docker Compose. The processor extracts from PostgreSQL
+      (orders, order_details) and MongoDB (chat_logs) and loads via
+      COPY INTO. These tables represent the most recent transaction data.
     database: BOA_DB
     schema: RAW_EXT
     tables:
       - name: orders_raw
+        description: >
+          Raw sales orders extracted from the PostgreSQL transactions database
+          by the processor service. Loaded via COPY INTO from the orders_stage
+          internal stage. Contains one row per order header. Staged into
+          stg_ecom__sales_orders and merged with legacy orders data.
       - name: order_details_raw
+        description: >
+          Raw order line items extracted from PostgreSQL by the processor
+          service. Loaded via COPY INTO from order_details_stage. Contains
+          one row per order line item. Merged with order data in the staging
+          layer to reconstruct the order_details VARIANT column.
       - name: chat_logs_raw
+        description: >
+          Raw customer support chat logs extracted from MongoDB by the
+          processor service. Stored as VARIANT (semi-structured JSON).
+          Loaded via COPY INTO from chat_stage.

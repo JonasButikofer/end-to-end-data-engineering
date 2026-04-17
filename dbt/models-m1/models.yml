@@ -1,39 +1,667 @@
+version: 2
+
 models:
+
+  # ---------------------------------------------------------------------------
+  # Staging: AdventureWorks source (adventure_db)
+  # ---------------------------------------------------------------------------
+
   - name: stg_adventure_db__customers
+    description: >
+      One row per customer from the AdventureWorks production database. Cleans
+      and renames raw columns from customer_prod_db. Grain: one row per
+      customer_id. Used as the customer dimension across the warehouse — join
+      to this model from any model that carries a customer_id to resolve name,
+      email, and geography.
     columns:
       - name: customer_id
+        description: >
+          Primary key. Unique identifier for the customer, cast to string from
+          the source integer. Join target for stg_ecom__sales_orders,
+          stg_ecom__email_campaigns, and int_web_analytics_with_customers.
         data_tests:
           - unique
           - not_null
       - name: first_name
+        description: Customer's given name from the AdventureWorks source.
         data_tests:
           - not_null
+      - name: middle_name
+        description: Customer's middle name. May be null.
+      - name: last_name
+        description: Customer's family name.
+      - name: full_name
+        description: Pre-concatenated full name from the source system.
+      - name: email_address
+        description: Customer's primary email address.
+      - name: address_line_1
+        description: First line of the customer's mailing address.
+      - name: address_line_2
+        description: Second line of the customer's mailing address. May be null.
+      - name: city
+        description: City of the customer's mailing address.
+      - name: state_province
+        description: State or province of the customer's mailing address.
+      - name: country_region
+        description: >
+          Country or region of the customer's mailing address. Used in the
+          Snowsight sales dashboard to slice revenue by geography.
+      - name: postal_code
+        description: Postal code of the customer's mailing address.
+      - name: account_number
+        description: Internal account number assigned by AdventureWorks.
+      - name: territory_id
+        description: >
+          Sales territory identifier, cast to string. Foreign key to the
+          territory dimension (not currently modeled in dbt).
+      - name: modified_date
+        description: Timestamp of the last update to this customer record in the source system.
 
   - name: stg_adventure_db__inventory
+    description: >
+      One row per product-location combination from the AdventureWorks warehouse
+      system. Tracks quantity on hand at a specific shelf and bin within a
+      storage location. Grain: one row per (product_id, location_id). Used for
+      inventory-level analysis and the no_negative_inventory_amounts data
+      quality test.
 
   - name: stg_adventure_db__vendors
+    description: >
+      One row per vendor from the AdventureWorks production database. Contains
+      vendor name, credit rating, preferred status, and active flag. Grain:
+      one row per vendor_id. Used for vendor-level analysis and the
+      preferred_vendors_have_credit data quality test, which checks that
+      preferred vendors always have an acceptable credit rating.
+
+  - name: stg_adventure_db__products
+    description: >
+      One row per currently active product from the AdventureWorks catalog.
+      Filters to products where sellenddate IS NULL, meaning discontinued
+      products are excluded. Joins to the measures seed to resolve size and
+      weight unit names. Contains product name, number, color, pricing
+      (standard_cost, list_price), physical attributes (size, weight),
+      classification (product_line, class, style, category, subcategory,
+      model), and sell dates. Grain: one row per product_id. Join to
+      int_sales_order_line_items on product_id to resolve product details
+      for line-item analysis.
+
+  # ---------------------------------------------------------------------------
+  # Staging: Real-time source (processor / Docker Compose)
+  # ---------------------------------------------------------------------------
+
+  - name: stg_real_time__chat_logs
+    description: >
+      One row per customer support ticket, parsed from the MongoDB chat_logs_raw
+      VARIANT column. Each record represents a single support interaction tied
+      to a specific customer, order, and product. Grain: one row per chat_id
+      (MongoDB ObjectId). Channels include Email, Phone, Chat, and Social media.
+      Ticket types include Technical issue, Refund request, and Product inquiry.
+      Note: ticket_description contains AI-generated synthetic text with
+      unfilled template placeholders (e.g. {product_purchased}) — this is
+      expected from the data generator.
+    columns:
+      - name: chat_id
+        description: >
+          Primary key. MongoDB ObjectId cast to string (24-character hex).
+          Uniquely identifies each support ticket.
+      - name: customer_id
+        description: >
+          Customer who opened the support ticket. Foreign key to
+          stg_adventure_db__customers.customer_id.
+      - name: sales_order_id
+        description: >
+          Order the ticket is related to. Foreign key to
+          stg_ecom__sales_orders.sales_order_id. May be null if the ticket
+          is not order-specific.
+      - name: product_id
+        description: >
+          Product the ticket is related to. Foreign key to
+          stg_adventure_db__products.product_id.
+      - name: order_date
+        description: Date the related order was placed, in UTC. Carried from the source order record.
+      - name: chat_start_time
+        description: Timestamp when the support session began, in UTC.
+      - name: chat_completion_time
+        description: Timestamp when the support session was resolved or closed, in UTC.
+      - name: ticket_channel
+        description: >
+          Channel through which the ticket was submitted. One of: Email, Phone,
+          Chat, Social media.
+      - name: ticket_type
+        description: >
+          Category of the support request. One of: Refund request,
+          Cancellation request, Technical issue, Billing inquiry,
+          Product inquiry.
+      - name: ticket_subject
+        description: >
+          Short subject line describing the specific issue. One of: Product
+          setup, Installation support, Account access, Payment issue, Data loss,
+          Network problem, Software bug, Product recommendation, Battery life,
+          Cancellation request, Product compatibility, Delivery problem,
+          Hardware issue, Peripheral compatibility, Refund request,
+          Display issue.
+      - name: ticket_description
+        description: >
+          Full text of the customer's support message. Contains AI-generated
+          synthetic content — unfilled template placeholders like
+          {product_purchased} and {error_message} are expected and normal.
+      - name: ticket_priority
+        description: >
+          Urgency level assigned to the ticket. One of: Low, Medium, High,
+          Critical.
+      - name: ticket_status
+        description: >
+          Current state of the ticket. Only observed value is Closed — all
+          tickets in the current dataset have been resolved.
+      - name: resolution
+        description: Short summary of how the ticket was resolved. Populated when ticket_status is Closed.
+      - name: customer_satisfaction_rating
+        description: >
+          Customer satisfaction score after ticket resolution, on a 1-5 scale
+          (1 = very dissatisfied, 5 = very satisfied). May be null if not
+          yet rated.
+      - name: last_modified
+        description: >
+          Timestamp of the last update to this record in MongoDB, converted
+          from Unix milliseconds to a Snowflake timestamp.
+
+  # ---------------------------------------------------------------------------
+  # Staging: E-commerce source (ecom)
+  # ---------------------------------------------------------------------------
 
   - name: stg_ecom__email_campaigns
+    description: >
+      One row per email marketing event (de-duplicated) from two campaign
+      sources: the legacy old_mktg system and the new new_mktg system. Events
+      are merged and de-duplicated on event_id, then further de-duplicated so
+      each (order_id, event_type) pair keeps only the most recent event.
+      Grain: one row per unique campaign event. Event types include
+      email_opened, email_clicked, add_to_cart, and conversion. The conversion
+      event is the key signal used in int_sales_orders_with_campaign to
+      attribute orders to campaigns.
     columns:
       - name: event_id
+        description: >
+          Primary key. Unique identifier for this campaign event, sourced from
+          the campaign system. De-duplicated across both campaign source tables.
         data_tests:
           - unique
+      - name: campaign_id
+        description: >
+          Composite campaign identifier in the format
+          customer_segment~product_category~ad_strategy. Parse with
+          split_part() to extract the three components individually.
+      - name: customer_segment
+        description: >
+          First component of campaign_id, parsed via split_part(campaign_id, '~', 1).
+          The customer segment this campaign targeted. One of:
+          first_time_customers, repeat_customers.
+      - name: product_category
+        description: >
+          Second component of campaign_id, parsed via split_part(campaign_id, '~', 2).
+          The product category this campaign promoted.
+      - name: ad_strategy
+        description: >
+          Third component of campaign_id, parsed via split_part(campaign_id, '~', 3).
+          The advertising strategy used. One of: product_launch, retargeting.
+      - name: event_date
+        description: Timestamp of when this campaign event occurred, in UTC.
       - name: event_type
+        description: >
+          Type of campaign interaction. One of: email_opened, email_clicked,
+          add_to_cart, conversion. A conversion event means the customer
+          completed a purchase attributed to this campaign.
         data_tests:
           - accepted_values:
               arguments:
-                values: ['email_opened','add_to_cart','conversion', 'email_clicked']
+                values: ['email_opened', 'add_to_cart', 'conversion', 'email_clicked']
       - name: customer_id
+        description: >
+          Customer who received or interacted with this campaign event. Foreign
+          key to stg_adventure_db__customers.customer_id.
         data_tests:
           - relationships:
               arguments:
                 to: ref('stg_adventure_db__customers')
                 field: customer_id
       - name: order_id
+        description: >
+          Order associated with a conversion event. Null for non-conversion
+          events. Foreign key to stg_ecom__sales_orders.sales_order_id. Used
+          in int_sales_orders_with_campaign to join campaign metadata onto orders.
         data_tests:
           - relationships:
               arguments:
                 to: ref('stg_ecom__sales_orders')
                 field: sales_order_id
+      - name: is_converted
+        description: >
+          Flag indicating whether this event resulted in a purchase. 1 if
+          order_id is not null, 0 otherwise.
 
-  - name: stg_adventure_db__products
+  # ---------------------------------------------------------------------------
+  # Intermediate models
+  # ---------------------------------------------------------------------------
+
+  - name: int_sales_order_line_items
+    description: >
+      One row per line item within a sales order, produced by lateral-flattening
+      the order_details VARIANT column from stg_ecom__sales_orders. Grain: one
+      row per (sales_order_id, sales_order_detail_id). Use this model for
+      product-level revenue analysis — e.g. revenue per product, units sold per
+      SKU. Join to stg_adventure_db__products on product_id to resolve product
+      names and categories.
+    columns:
+      - name: sales_order_id
+        description: >
+          Foreign key to stg_ecom__sales_orders.sales_order_id. Groups all
+          line items back to their parent order.
+      - name: sales_order_detail_id
+        description: >
+          Primary key for the line item within the order. Unique per
+          (sales_order_id, sales_order_detail_id) combination.
+      - name: customer_id
+        description: Customer who placed the order. Carried from the parent order.
+      - name: order_date
+        description: Date the parent order was placed. Carried from the parent order.
+      - name: carrier_tracking_number
+        description: Shipping carrier tracking number for this line item. May be null.
+      - name: order_qty
+        description: Quantity of the product ordered on this line item.
+      - name: product_id
+        description: >
+          Product ordered on this line item. Foreign key to
+          stg_adventure_db__products.product_id.
+      - name: special_offer_id
+        description: Special offer or discount applied to this line item. May be null.
+      - name: unit_price
+        description: Price per unit at time of order, in USD.
+      - name: unit_price_discount
+        description: Discount applied to the unit price, as a decimal fraction (e.g. 0.05 = 5%).
+      - name: line_total
+        description: Total revenue for this line item (unit_price * (1 - discount) * qty).
+      - name: line_item_modified_date
+        description: Timestamp of the last modification to this line item in the source system.
+
+  - name: int_sales_orders_with_campaign
+    description: >
+      One row per sales order, enriched with campaign attribution metadata.
+      Built by left-joining stg_ecom__sales_orders to conversion events from
+      stg_ecom__email_campaigns. Grain: one row per sales_order_id. Campaign
+      columns (campaign_id, customer_segment, product_category, ad_strategy)
+      are null when the order was not driven by a campaign.
+      is_campaign_conversion is the key flag for campaign ROI analysis.
+      This model feeds int_sales_order_with_customers, which powers the
+      Snowsight sales dashboard.
+    columns:
+      - name: sales_order_id
+        description: >
+          Primary key. Unique identifier for the sales order. Inherited from
+          stg_ecom__sales_orders.
+      - name: customer_id
+        description: >
+          Customer who placed the order. Foreign key to
+          stg_adventure_db__customers.customer_id.
+      - name: order_date
+        description: Timestamp when the order was placed, in UTC.
+      - name: campaign_id
+        description: >
+          Composite campaign identifier (customer_segment~product_category~ad_strategy)
+          from the attributed campaign conversion event. Null if this order was
+          not attributed to a campaign.
+      - name: customer_segment
+        description: >
+          Customer segment targeted by the campaign. Parsed from campaign_id.
+          Null for non-campaign orders.
+      - name: product_category
+        description: >
+          Product category promoted by the campaign. Parsed from campaign_id.
+          Null for non-campaign orders.
+      - name: ad_strategy
+        description: >
+          Advertising strategy used by the campaign. Parsed from campaign_id.
+          Null for non-campaign orders.
+      - name: is_campaign_conversion
+        description: >
+          1 if this order is attributed to an email campaign conversion event,
+          0 otherwise. Primary flag for measuring campaign-driven revenue.
+
+  - name: int_sales_order_with_customers
+    description: >
+      One row per sales order placed in the last 30 days, enriched with
+      customer geography. Built by joining int_sales_orders_with_campaign to
+      stg_adventure_db__customers and filtering to order_date >= 30 days ago.
+      Grain: one row per sales_order_id within the rolling 30-day window.
+      This is the direct source for the Snowsight sales dashboard — it drives
+      the sales-over-time chart and the revenue-by-country breakdown.
+    columns:
+      - name: sales_order_id
+        description: Primary key. Unique identifier for the sales order.
+      - name: order_date
+        description: Timestamp when the order was placed, in UTC. Used for the daily trend chart.
+      - name: total_due
+        description: Total amount due for the order including tax and freight, in USD.
+      - name: sub_total
+        description: Order subtotal before tax and freight, in USD.
+      - name: customer_id
+        description: >
+          Customer who placed the order. Foreign key to
+          stg_adventure_db__customers.customer_id.
+      - name: campaign_id
+        description: Campaign attribution identifier. Null for non-campaign orders.
+      - name: is_campaign_conversion
+        description: 1 if campaign-attributed, 0 otherwise. Inherited from int_sales_orders_with_campaign.
+      - name: country_region
+        description: >
+          Country or region of the customer. Primary dimension for the
+          revenue-by-country chart in the Snowsight dashboard.
+      - name: city
+        description: City of the customer.
+      - name: state_province
+        description: State or province of the customer.
+
+  - name: stg_adventure_db__product_vendors
+    description: >
+      One row per product-vendor relationship from the AdventureWorks procurement
+      system. Maps which vendors supply which products along with pricing and lead
+      time data. Resolves unit measure codes by joining to the measures seed.
+      Grain: one row per (product_id, vendor_id). Join to
+      stg_adventure_db__vendors on vendor_id and stg_adventure_db__products on
+      product_id for full supplier and product context.
+    columns:
+      - name: product_id
+        description: >
+          Foreign key to stg_adventure_db__products.product_id. Identifies the
+          product being supplied.
+      - name: vendor_id
+        description: >
+          Foreign key to stg_adventure_db__vendors.vendor_id. Identifies the
+          vendor supplying the product.
+      - name: average_lead_time
+        description: Average number of days between placing an order and receiving the product from this vendor.
+      - name: standard_price
+        description: Standard unit cost when purchasing this product from this vendor.
+      - name: last_receipt_cost
+        description: Actual unit cost on the most recent purchase receipt from this vendor.
+      - name: last_receipt_date
+        description: Date of the most recent delivery from this vendor for this product.
+      - name: min_order_qty
+        description: Minimum quantity that must be ordered from this vendor per purchase order.
+      - name: max_order_qty
+        description: Maximum quantity that can be ordered from this vendor per purchase order.
+      - name: on_order_qty
+        description: Quantity currently on order from this vendor for this product. May be null.
+      - name: measurement
+        description: >
+          Human-readable unit of measure name, resolved from the measures seed
+          via unitmeasurecode. Examples: Each, Pound, Dozen.
+      - name: modified_date
+        description: Timestamp of the last update to this product-vendor record in the source system.
+
+  - name: stg_ecom__purchase_orders
+    description: >
+      One row per purchase order from the legacy e-commerce system. Parses the
+      VARIANT raw column from ecom_source.purchase_order_raw to extract order
+      header and line item fields. Resolves ship method names by joining to the
+      ship_method seed. Grain: one row per purchase_order_id. Used for vendor
+      procurement analysis — distinct from stg_ecom__sales_orders which tracks
+      customer-facing orders.
+    columns:
+      - name: purchase_order_id
+        description: Primary key. Unique identifier for the purchase order.
+      - name: employee_id
+        description: Employee who placed the purchase order.
+      - name: vendor_id
+        description: >
+          Vendor this purchase order was placed with. Foreign key to
+          stg_adventure_db__vendors.vendor_id.
+      - name: product_id
+        description: >
+          Product ordered on this purchase order. Foreign key to
+          stg_adventure_db__products.product_id.
+      - name: order_date
+        description: Timestamp when the purchase order was placed.
+      - name: ship_date
+        description: Timestamp when the order was shipped by the vendor.
+      - name: due_date
+        description: Date the order was due to be received.
+      - name: shipping_method
+        description: Name of the shipping method, resolved from the ship_method seed.
+      - name: status
+        description: Numeric status code for the purchase order (1=Pending, 2=Approved, 3=Rejected, 4=Complete).
+      - name: subtotal
+        description: Order subtotal before tax and freight, in USD.
+      - name: tax_amt
+        description: Tax amount for the order, in USD.
+      - name: freight
+        description: Freight/shipping cost, in USD.
+      - name: total_due
+        description: Total amount due including subtotal, tax, and freight, in USD.
+      - name: order_qty
+        description: Quantity of the product ordered on this purchase order.
+      - name: unit_price
+        description: Unit price agreed with the vendor for this order, in USD.
+      - name: line_total
+        description: Total line value (unit_price * order_qty), in USD.
+      - name: received_qty
+        description: Quantity actually received from the vendor.
+      - name: rejected_qty
+        description: Quantity rejected during receiving inspection.
+      - name: stocked_qty
+        description: Quantity accepted into inventory (received_qty - rejected_qty).
+      - name: revision_number
+        description: Revision count for the purchase order, incremented on each change.
+      - name: purchase_order_detail_id
+        description: Line item identifier within the purchase order.
+      - name: order_details
+        description: Raw VARIANT column containing the full order detail JSON from the source system.
+
+  - name: stg_ecom__sales_orders
+    description: >
+      One row per sales order, combining legacy e-commerce orders (from
+      base_ecom__sales_orders) with real-time orders loaded from PostgreSQL
+      (via base_real_time__sales_orders) using UNION ALL. Resolves ship method
+      names by joining to the ship_method seed. Normalizes the noisy
+      delivery_estimate text field (e.g. "3 days", "2 weeks") into integer
+      delivery_estimate_days. Grain: one row per sales_order_id across both
+      sources. This is the primary order source — it feeds
+      int_sales_order_line_items (via order_details flattening) and
+      int_sales_orders_with_campaign (via campaign attribution join).
+    columns:
+      - name: sales_order_id
+        description: >
+          Primary key. Unique identifier for the sales order, shared across
+          the legacy and real-time sources.
+      - name: customer_id
+        description: >
+          Customer who placed the order. Foreign key to
+          stg_adventure_db__customers.customer_id.
+      - name: order_date
+        description: Timestamp when the order was placed, in UTC.
+      - name: ship_date
+        description: Timestamp when the order was shipped.
+      - name: due_date
+        description: Date the order was due to be delivered.
+      - name: shipping_method
+        description: Name of the shipping method, resolved from the ship_method seed.
+      - name: delivery_estimate_days
+        description: >
+          Normalized delivery estimate in days. Parsed from the noisy
+          delivery_estimate text field — "3 days" becomes 3, "2 weeks" becomes
+          14. Null for real-time orders (field not available in that source).
+      - name: sub_total
+        description: Order subtotal before tax and freight, in USD.
+      - name: tax_amt
+        description: Tax amount for the order, in USD.
+      - name: freight
+        description: Freight/shipping cost, in USD.
+      - name: total_due
+        description: Total amount due including subtotal, tax, and freight, in USD.
+      - name: order_details
+        description: >
+          VARIANT column containing the nested line item array. Flattened in
+          int_sales_order_line_items to produce one row per line item.
+      - name: status
+        description: Numeric status code for the order.
+      - name: online_order_flag
+        description: 1 if the order was placed online, 0 if placed by a sales representative.
+      - name: sales_order_number
+        description: Human-readable order reference number (e.g. SO-12345).
+      - name: purchase_order_number
+        description: Customer's purchase order number, if provided.
+      - name: account_number
+        description: Internal account number for the customer.
+      - name: sales_person_id
+        description: Sales representative who handled the order. Null for online orders.
+      - name: territory_id
+        description: Sales territory the order belongs to.
+      - name: bill_to_address_id
+        description: Address ID for billing. Foreign key to the address dimension.
+      - name: ship_to_address_id
+        description: Address ID for shipping. Foreign key to the address dimension.
+      - name: credit_card_id
+        description: Credit card used for payment. May be null for non-card orders.
+      - name: credit_card_approval_code
+        description: Authorization code returned by the payment processor.
+      - name: currency_rate_id
+        description: Currency exchange rate applied to the order. Null for USD orders.
+      - name: comment
+        description: Free-text comment on the order. May be null.
+      - name: revision_number
+        description: Revision count for the order, incremented on each change.
+      - name: modified_date
+        description: Timestamp of the last modification to this order record.
+
+  # ---------------------------------------------------------------------------
+  # Base layer: E-commerce source (ecom / new_mktg)
+  # ---------------------------------------------------------------------------
+
+  - name: base_ecom__email_campaigns
+    description: >
+      Base staging layer for the legacy email campaign source. Parses the raw
+      VARIANT column from ecom_source.email_campaign_raw, casting and renaming
+      fields to a consistent schema. Grain: one row per campaign event from the
+      legacy old_mktg system. The model includes an intentional test violation
+      setup (a hardcoded duplicate conversion event for order 44330, kept
+      commented out) used to exercise the event_id uniqueness test in
+      stg_ecom__email_campaigns. Combined with base_ecom__email_mktg_new
+      via UNION ALL in stg_ecom__email_campaigns to produce the unified
+      campaign event table.
+    columns:
+      - name: event_id
+        description: Unique identifier for the campaign event, parsed from raw:event_id.
+      - name: campaign_id
+        description: Composite campaign identifier in the format customer_segment~product_category~ad_strategy.
+      - name: event_date
+        description: Timestamp of the campaign event, parsed from the DD-Mon-YYYY HH12.MI AM format in the source.
+      - name: event_type
+        description: Type of campaign interaction. One of email_opened, email_clicked, add_to_cart, conversion.
+      - name: customer_id
+        description: Customer who received or interacted with this campaign event.
+      - name: order_id
+        description: Order associated with a conversion event. Null for non-conversion events.
+      - name: product_id
+        description: Product referenced by the campaign event. May be null.
+
+  - name: base_ecom__email_mktg_new
+    description: >
+      Base staging layer for the current email marketing platform. Parses the
+      raw VARIANT column from new_mktg.email_mktg_raw, normalizing inconsistent
+      field names to match the schema of base_ecom__email_campaigns: spaces are
+      stripped from campaign_id, EventID is lowercased to event_id, eventDate
+      becomes event_date, and eventType is lowercased. Grain: one row per
+      campaign event from the current marketing platform. Combined with
+      base_ecom__email_campaigns via UNION ALL in stg_ecom__email_campaigns.
+    columns:
+      - name: event_id
+        description: Unique identifier for the campaign event, sourced from raw:EventID and renamed to match the legacy schema.
+      - name: campaign_id
+        description: Composite campaign identifier with spaces stripped, normalized to match the legacy format.
+      - name: event_date
+        description: Timestamp of the campaign event, parsed from the DD-Mon-YYYY HH12.MI AM format.
+      - name: event_type
+        description: Type of campaign interaction, lowercased to match legacy values. One of email_opened, email_clicked, add_to_cart, conversion.
+      - name: customer_id
+        description: Customer who received or interacted with the campaign event.
+      - name: order_id
+        description: Order associated with a conversion event. Null for non-conversion events.
+      - name: product_id
+        description: Product referenced by the campaign event. May be null.
+
+  - name: base_ecom__sales_orders
+    description: >
+      Base staging layer for legacy sales orders from the e-commerce system.
+      Parses the raw VARIANT column from ecom_source.sales_order_raw, casting
+      all fields from semi-structured JSON to typed columns. Preserves the
+      nested order_details VARIANT column intact — this array is later
+      flattened in int_sales_order_line_items to produce one row per line item.
+      Grain: one row per sales order from the legacy e-commerce system.
+      Combined with base_real_time__sales_orders via UNION ALL in
+      stg_ecom__sales_orders after ship method resolution.
+    columns:
+      - name: sales_order_id
+        description: Primary key. Unique identifier for the sales order, cast to string.
+      - name: customer_id
+        description: Customer who placed the order. Foreign key to stg_adventure_db__customers.customer_id.
+      - name: order_date
+        description: Timestamp when the order was placed.
+      - name: order_details
+        description: >
+          VARIANT column containing the nested line item array from the source
+          JSON. Passed through intact for flattening in int_sales_order_line_items.
+      - name: ship_method_id
+        description: Numeric ID of the shipping method. Resolved to a name via ship_method seed in stg_ecom__sales_orders.
+      - name: delivery_estimate
+        description: >
+          Raw delivery estimate text from the source (e.g. "3 days", "2 weeks").
+          Normalized to integer delivery_estimate_days in stg_ecom__sales_orders.
+      - name: sub_total
+        description: Order subtotal before tax and freight, in USD.
+      - name: tax_amt
+        description: Tax amount for the order, in USD.
+      - name: freight
+        description: Freight/shipping cost, in USD.
+      - name: total_due
+        description: Total amount due including subtotal, tax, and freight, in USD.
+      - name: status
+        description: Numeric order status code.
+      - name: online_order_flag
+        description: 1 if the order was placed online, 0 if placed by a sales representative.
+
+  - name: base_real_time__sales_orders
+    description: >
+      Base staging layer for real-time sales orders loaded from PostgreSQL by
+      the processor service. Joins orders_raw with order_details_raw from the
+      real_time source, then reconstructs the nested order_details VARIANT
+      array using array_agg(object_construct(...)), matching the structure
+      produced by base_ecom__sales_orders so both can be unioned in
+      stg_ecom__sales_orders. Grain: one row per sales order from the
+      PostgreSQL real-time source. This model is what allows real-time order
+      data to flow through the same dbt pipeline as the legacy ecom data.
+    columns:
+      - name: sales_order_id
+        description: Primary key. Unique identifier for the sales order from the PostgreSQL source.
+      - name: customer_id
+        description: Customer who placed the order. Cast via try_to_number(). Foreign key to stg_adventure_db__customers.customer_id.
+      - name: order_date
+        description: Timestamp when the order was placed.
+      - name: order_details
+        description: >
+          Reconstructed VARIANT array of line items, built by aggregating
+          order_details_raw rows into object_construct() structs matching the
+          legacy ecom schema. Enables lateral flattening in
+          int_sales_order_line_items.
+      - name: ship_method_id
+        description: Numeric ID of the shipping method. Cast via try_to_number(). Resolved to a name in stg_ecom__sales_orders.
+      - name: sub_total
+        description: Order subtotal before tax and freight, in USD.
+      - name: tax_amt
+        description: Tax amount for the order, in USD.
+      - name: freight
+        description: Freight/shipping cost, in USD.
+      - name: total_due
+        description: Total amount due including subtotal, tax, and freight, in USD.
+      - name: status
+        description: Numeric order status code.
+      - name: online_order_flag
+        description: 1 if the order was placed online, 0 if placed by a sales representative. Cast to integer.

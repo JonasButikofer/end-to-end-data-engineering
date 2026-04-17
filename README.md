@@ -1,118 +1,161 @@
-[![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-22041afd0340ce965d47ae6ef1cefeee28c7c493a6346c4f15d667ab976d596c.svg)](https://classroom.github.com/a/7Tkgt8hQ)
-# Final Project
+# Adventure Works Data Platform
 
-The always-up-to-date instructions for this assignment can be found [here](https://github.com/byu-is-566/is-566-11-final-project-instuctions). 
+> This project builds a production ready data pipeline on Snowflake and dbt that ingests Adventure Works sales, e-commerce, and real-time order data into a single warehouse, enabling reporting and agent accessible analytics via MCP.
 
-I'd recommend that you only access the instructions via the web so that you always have the latest copy.
 
-Oh and **refresh often** so you don't miss updates.
+
+## Architecture
+
+<!-- 
+  Replace this section with your architecture diagram. Options:
+  1. Embed a Mermaid diagram (GitHub renders it natively) — see the example below
+  2. Include an image: ![Architecture](screenshots/architecture.png)
+  
+  Your diagram should show:
+  - All data sources (PostgreSQL, MongoDB, REST API)
+  - Extract & ingest layer (ETL processor, Snowflake stages)
+  - Orchestration (Prefect)
+  - Raw layer
+  - Transformation layers (dbt staging, intermediate)
+  - Quality & CI/CD (dbt tests, dbt Cloud)
+  - Analytics & access (dashboards, MCP server)
+-->
+
+**Caption:** [TODO: Write a 1-2 sentence caption explaining the end-to-end flow shown in the diagram.]
 
 ---
 
-## Milestone 2: Web Analytics Pipeline
+## Problem Statement
 
-### What Was Built
+[TODO: Describe the business problem this platform solves. What data is spread across which systems? What questions can't stakeholders answer today? How does your platform address this? Aim for 3-5 sentences.]
 
-Milestone 2 added a third data source — a REST API serving clickstream events from the Adventure Works web storefront — and built a full ingestion-to-staging pipeline around it:
+---
 
-- A **Prefect flow** (`prefect/flows/web_analytics_flow.py`) that polls the API on a schedule, deduplicates events, uploads them to a Snowflake internal stage, and COPYs them into the raw table using a watermark-based incremental strategy
-- **dbt staging and intermediate models** (`models-m2/`) that clean and enrich the raw clickstream data
-- **Data quality checks** via dbt generic tests, custom SQL tests, and source freshness validation
-- **dbt Cloud** configured with a scheduled production job and a CI/CD job that runs on every pull request
+## Tech Stack
 
-### Architecture
+| Layer | Technology | Why |
+|-------|-----------|-----|
+| Source Systems | PostgreSQL, MongoDB, REST API | [TODO: Why do these represent real-world diversity?] |
+| Extraction | Python ETL Processor | [TODO: Why a custom processor? What patterns does it use (e.g., watermarks)?] |
+| Warehouse | Snowflake | [TODO: Why Snowflake specifically? Think about compute/storage separation, semi-structured data support, etc.] |
+| Transformation | dbt | [TODO: Why dbt? Think about testing, documentation, lineage, version control.] |
+| Orchestration | Prefect | [TODO: Why Prefect over alternatives? Think about retries, logging, simplicity.] |
+| CI/CD | dbt Cloud + GitHub | [TODO: What does this give you? Automated builds, scheduled runs, etc.] |
+| Agent Access | dbt MCP Server | [TODO: What does MCP enable? How does it expose your models to AI agents?] |
+| Containerization | Docker Compose | [TODO: Why Docker? Think about reproducibility.] |
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Data Sources                             │
-│                                                                 │
-│  PostgreSQL (ecom)   MongoDB (support)   REST API (web clicks)  │
-└──────┬──────────────────────┬───────────────────┬──────────────┘
-       │                      │                   │
-       │  Milestone 1         │  Milestone 1      │  Milestone 2
-       │  processor/          │  processor/       │  Prefect Flow
-       ▼                      ▼                   ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     Snowflake (BOA_DB)                          │
-│                                                                 │
-│  RAW_EXT schema                                                 │
-│  ├── orders_raw          ├── order_details_raw                  │
-│  ├── chat_logs_raw       └── web_analytics_raw  ◄── NEW         │
-└──────────────────────────────┬──────────────────────────────────┘
-                               │
-                               │  dbt (local dev + dbt Cloud)
-                               ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     dbt_dev / dbt_prod                          │
-│                                                                 │
-│  Staging layer                                                  │
-│  ├── stg_ecom__sales_orders    ├── stg_adventure_db__customers  │
-│  ├── stg_real_time__chat_logs  └── stg_web_analytics  ◄── NEW  │
-│                                                                 │
-│  Intermediate layer                                             │
-│  ├── int_sales_orders_with_campaign                             │
-│  ├── int_sales_order_line_items                                 │
-│  └── int_web_analytics_with_customers  ◄── NEW                 │
-└─────────────────────────────────────────────────────────────────┘
-                               │
-                               │  dbt Cloud (scheduled + CI/CD)
-                               ▼
-                     Snowsight Dashboards
-```
+---
 
-### Data Sources
+## Data Flow
 
-| Source | Type | Ingestion | Raw Table |
-|--------|------|-----------|-----------|
-| AdventureWorks ecom (PostgreSQL) | Transactional orders | Milestone 1 processor | `orders_raw`, `order_details_raw` |
-| Support chat logs (MongoDB) | Unstructured chat | Milestone 1 processor | `chat_logs_raw` |
-| Web analytics API (REST) | Clickstream events | Prefect flow (M2) | `web_analytics_raw` |
+[TODO: Describe the end-to-end data flow in 2-3 paragraphs. Cover:
 
-### Data Quality Strategy
+**Paragraph 1 — Ingestion:** How does data enter the platform from each source? What extraction strategy do you use (watermarks, full refresh)? How is data staged and loaded into Snowflake?
 
-- **Generic tests** on all staging models: `not_null`, `unique`, `accepted_values`, `relationships`
-- **Source freshness** configured on `web_analytics_raw`: warns at 12h, errors at 24h — run with `dbt source freshness`
-- **Custom SQL tests** in `dbt/tests/`:
-  - `web_analytics_row_count_minimum.sql` — ensures at least 50 rows in staging
-  - `web_analytics_freshness_check.sql` — verifies most recent event is within 4 hours
-- All 46 tests pass as of Milestone 2 completion
+**Paragraph 2 — Transformation:** What happens in the dbt layers? What do staging models do (cleaning, casting, renaming)? What do intermediate models do (joining across sources)? Give specific model names.
 
-### Agent Log
+**Paragraph 3 — Serving:** How is the final data consumed? Dashboards? MCP server? How does testing and CI/CD fit in?]
 
-Development for Milestone 2 was done with Claude Code (claude-sonnet-4-6). See [`prefect/agent_log.md`](prefect/agent_log.md) for a full record of the AI-assisted development process, including 9 iteration rounds, errors encountered, and lessons learned. Key takeaways: the agent was strong on Snowflake-specific patterns and flow architecture, but required human verification for infrastructure state (database names, DDL pre-reqs).
+---
 
-### Setup — New in Milestone 2
+## Setup and Run
 
-**New environment variables** (add to your `.env.dev`):
+### Prerequisites
+- Docker Desktop
+- Snowflake account (trial works)
+- Python 3.9+
+- dbt Cloud account (free tier)
+
+### Quick Start
 
 ```bash
-API_BASE_URL=https://is566-web-analytics-api.fly.dev
-PREFECT_API_URL=http://prefect-server:4200/api
-FLOW_SCHEDULE_MINUTES=15
-```
+# 1. Clone the repository
+git clone https://github.com/[TODO: your-username]/[TODO: your-repo-name].git
+cd [TODO: your-repo-name]
 
-**Start Prefect services:**
+# 2. Configure environment
+cp .env.sample .env
+# Edit .env with your Snowflake credentials
 
-```bash
-docker compose up -d prefect-server prefect-worker web-analytics-flow
-```
+# 3. Create raw tables in Snowflake
+# [TODO: describe how to set up the raw tables]
 
-**Run the web analytics flow manually:**
+# 4. Start all services
+docker compose up -d
 
-```bash
-cd prefect
-.venv\Scripts\python.exe -m flows.web_analytics_flow
-```
-
-**Run dbt models for Milestone 2 only:**
-
-```bash
+# 5. Run dbt models and tests
 cd dbt
-dbt build --select models-m2
+dbt build
+
+# 6. Start the MCP server
+# [TODO: your MCP server start command]
+
+# 7. (Optional) Run the MCP demo
+cd mcp
+uv sync
+uv run python demo_client.py
 ```
 
-**Check source freshness:**
+### Environment Variables
 
-```bash
-dbt source freshness
-```
+| Variable | Description |
+|----------|-------------|
+| `SNOWFLAKE_ACCOUNT` | Full Snowflake account identifier (e.g., `ab12345.us-east-1`) |
+| `SNOWFLAKE_USER` | Snowflake username |
+| `SNOWFLAKE_PASSWORD` | Snowflake password |
+| `SNOWFLAKE_WAREHOUSE` | Compute warehouse name (e.g., `COMPUTE_WH`) |
+| `SNOWFLAKE_DATABASE` | Target database (e.g., `IS566`) |
+| `SNOWFLAKE_ROLE` | Snowflake role (default: `ACCOUNTADMIN`) |
+
+See `.env.sample` for the full list.
+
+---
+
+## Project Milestones
+
+### Milestone 1: Core Pipeline
+[TODO: Summarize what you built in Milestone 1. Cover: ETL extraction sources, staging models created, intermediate models created, data quality tests implemented. Be specific — name your models and mention counts.]
+
+### Milestone 2: Orchestration, Quality, and Agent-Assisted Development
+[TODO: Summarize what you added in Milestone 2. Cover: Prefect orchestration, dbt Cloud integration, new models (web analytics), source freshness, dashboards.]
+
+### Milestone 3: Agent Access and Portfolio
+[TODO: Summarize what you completed in Milestone 3. Cover: MCP server deployment, documentation upgrades, demo client, portfolio finalization.]
+
+---
+
+## Key Metrics
+
+<!-- Run actual Snowflake queries to fill in these numbers. Do NOT estimate or guess. -->
+
+| Metric | Value |
+|--------|-------|
+| Raw records processed per cycle | [TODO: query your raw tables] |
+| Pipeline execution time | [TODO: time your Docker Compose run] |
+| dbt models | [TODO: run `dbt ls --resource-type model \| wc -l`] |
+| dbt tests | [TODO: run `dbt ls --resource-type test \| wc -l`] |
+| Test pass rate | [TODO: run `dbt test` and report pass/fail] |
+| Data sources integrated | [TODO: count from sources.yml] |
+| Source tables | [TODO: count] |
+| Models exposed via MCP | [TODO: count from demo script output] |
+| Source freshness SLA | [TODO: your freshness threshold] |
+
+---
+
+## What I Learned
+
+[TODO: Write 4-6 sentences of genuine reflection. What surprised you? What was harder than expected? What would you do differently if starting over? What did you learn about data engineering as a discipline — not just the tools, but the craft? Avoid generic platitudes; be specific to YOUR experience.]
+
+---
+
+## Future Improvements
+
+- **[TODO: Improvement 1 title]**: [TODO: Describe a specific improvement you'd make. Why would it matter? What problem would it solve?]
+- **[TODO: Improvement 2 title]**: [TODO: Describe another improvement.]
+- **[TODO: Improvement 3 title]**: [TODO: Describe another improvement.]
+
+---
+
+## Technical Decisions
+
+See [technical_decisions.md](technical_decisions.md) for detailed documentation of key architectural choices.
