@@ -19,18 +19,18 @@ flowchart TD
         STAGE[Snowflake Stages\n+ COPY INTO]
     end
 
-    subgraph Bronze["🥉 Bronze — Raw Layer"]
+    subgraph Bronze["Bronze Layer — Raw Layer"]
         RAW_S[adventure_db.*\nraw tables]
         RAW_E[ecom.*\nraw tables]
         RAW_RT[real_time.*\nraw tables]
     end
 
-    subgraph Silver["🥈 Silver — Staging & Base"]
+    subgraph Silver["Silver Layer — Staging & Base"]
         BASE[Base Models\nparse VARIANT JSON]
         STG[Staging Models\ncast · rename · clean]
     end
 
-    subgraph Gold["🥇 Gold — Intermediate & Serving"]
+    subgraph Gold["Gold Layer — Intermediate & Serving"]
         INT[Intermediate Models\ncross-source joins]
         TESTS[28 dbt Tests\nnot_null · unique · relationships]
     end
@@ -58,7 +58,7 @@ flowchart TD
     PREFECT -.->|schedules| Ingest
 ```
 
-**Caption:** Data is pulled from three different data sources: API, NoSQL DB, and a RDB. This is moved from the bronze, silver, and gold layers of the warehouse  
+**Caption:** Raw data from three source systems (PostgreSQL, MongoDB, REST API) is extracted by a watermark-based Python ETL processor and landed in Snowflake's Bronze layer. dbt transforms it through Silver (base parsing, staging cleanup) into Gold (cross-source intermediate models with 28 automated tests), serving dashboards and an AI-accessible MCP server. Prefect orchestrates ingestion; dbt Cloud handles scheduled runs and CI/CD.
 
 ---
 
