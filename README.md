@@ -19,21 +19,20 @@ flowchart TD
         STAGE[Snowflake Stages\n+ COPY INTO]
     end
 
-    subgraph Raw["Raw Layer (Snowflake)"]
-        RAW_S[adventure_db.*]
-        RAW_E[ecom.*]
-        RAW_RT[real_time.*]
+    subgraph Bronze["🥉 Bronze — Raw Layer"]
+        RAW_S[adventure_db.*\nraw tables]
+        RAW_E[ecom.*\nraw tables]
+        RAW_RT[real_time.*\nraw tables]
     end
 
-    subgraph Transform["dbt Transformation"]
+    subgraph Silver["🥈 Silver — Staging & Base"]
         BASE[Base Models\nparse VARIANT JSON]
         STG[Staging Models\ncast · rename · clean]
-        INT[Intermediate Models\ncross-source joins]
     end
 
-    subgraph Quality["Quality & CI/CD"]
+    subgraph Gold["🥇 Gold — Intermediate & Serving"]
+        INT[Intermediate Models\ncross-source joins]
         TESTS[28 dbt Tests\nnot_null · unique · relationships]
-        CLOUD[dbt Cloud\nscheduled runs · PR checks]
     end
 
     subgraph Serve["Serving Layer"]
@@ -42,6 +41,7 @@ flowchart TD
     end
 
     PREFECT[Prefect Orchestration]
+    CLOUD[dbt Cloud\nscheduled runs · PR checks]
 
     PG --> ETL
     MG --> ETL
@@ -54,11 +54,11 @@ flowchart TD
     INT --> TESTS
     INT --> DASH
     INT --> MCP
-    CLOUD -.->|triggers| Transform
+    CLOUD -.->|triggers| Silver & Gold
     PREFECT -.->|schedules| Ingest
 ```
 
-**Caption:** [TODO: Write a 1-2 sentence caption explaining the end-to-end flow shown in the diagram.]
+**Caption:** Data is pulled from three different data sources: API, NoSQL DB, and a RDB. This is moved from the bronze, silver, and gold layers of the warehouse  
 
 ---
 
