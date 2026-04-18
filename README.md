@@ -74,12 +74,12 @@ Adventure Works generates sales data across three disconnected systems: a legacy
 |-------|-----------|-----|
 | Source Systems | PostgreSQL, MongoDB, REST API | These technologies are the most common data sources that a Data Engineer will find in the real world. I used these to best simulate an organization's environment.  |
 | Extraction | Python ETL Processor | I built a custom Python ETL processor that uses watermarks to track the last extracted record from PostgreSQL and MongoDB, so only new data moves each cycle. This keeps source system load low and makes the pipeline efficient enough to run on a schedule without full refreshes. |
-| Warehouse | Snowflake | Snowflake allows for a seperation of compute and storage that fits my use case of occasional data processing. Snowflake also has native dbt integration that allows for easy data manipulation in a modern cloud platform.  |
-| Transformation | dbt | I am using dbt to enable data quality through native testing. It also is easy to document for future user. Additionally, while developing the warehouse I used version control to make changes and guarentee my data was moving through the warehouse correctly. Finally, the ability to trace data lineage easily with dbt makes it an obvious choice because data becomes more reporducable and less of a blackbox when you can see where a dashboard is pulling its data from. |
-| Orchestration | Prefect | I chose Prefect as my orchestrator because of it easily allows for rerunning interupted jobs and is a low complexity environment that beginning engineers can quickly learn and navigate to allow for minimal startup time.  |
+| Warehouse | Snowflake | Snowflake allows for a separation of compute and storage that fits my use case of occasional data processing. Snowflake also has native dbt integration that allows for easy data manipulation in a modern cloud platform.  |
+| Transformation | dbt | I am using dbt to enable data quality through native testing. It also is easy to document for future users. Additionally, while developing the warehouse I used version control to make changes and guarantee my data was moving through the warehouse correctly. Finally, the ability to trace data lineage easily with dbt makes it an obvious choice because data becomes more reproducible and less of a blackbox when you can see where a dashboard is pulling its data from. |
+| Orchestration | Prefect | I chose Prefect as my orchestrator because it easily allows for rerunning interrupted jobs and is a low complexity environment that beginning engineers can quickly learn and navigate to allow for minimal startup time.  |
 | CI/CD | dbt Cloud + GitHub | I used these for version control and automated warehouse builds while the pipeline is live. This allows for near instant updates as code is pushed. Implementing dbt Cloud also prevents code changes from affecting the production environment if tests are failing, adding a layer of protection to the warehouse. |
-| Agent Access | dbt MCP Server | The MCP server prepares the data to be seen by AI agents for easy querying, lineage understanding, asking for downstream effects of warehouse changes, and helping new engineers quickly become familiar with complex pipelines. MCP servers also require deep documentation, pushing data warehouses to accessible.  |
-| Containerization | Docker Compose | This pipeline does not run solely on my machine. Docker containers enable reproducability of this pipeline onto any infrastructure so it can be migrated, agnostic to what an organization's prefered system. |
+| Agent Access | dbt MCP Server | The MCP server prepares the data to be seen by AI agents for easy querying, lineage understanding, asking for downstream effects of warehouse changes, and helping new engineers quickly become familiar with complex pipelines. MCP servers also require deep documentation, pushing data warehouses to be more accessible.  |
+| Containerization | Docker Compose | This pipeline does not run solely on my machine. Docker containers enable reproducibility of this pipeline onto any infrastructure so it can be migrated, agnostic to an organization's preferred system. |
 
 ---
 
@@ -88,7 +88,7 @@ Adventure Works generates sales data across three disconnected systems: a legacy
 
 **Ingestion:** 
 
-I pull data from the MongoDB and PostgreSQL databases using a timestamp watermark that makes the system more efficient and clean by not pulling all records each time, just the new records each cycle. I pull the REST API data on a configured schedule. All three sources stage into Snowflake via a COPY INTO and then land into the raw layer. I used Prefect to orchestrate scheduling and to rerun the work if it is interupted. 
+I pull data from the MongoDB and PostgreSQL databases using a timestamp watermark that makes the system more efficient and clean by not pulling all records each time, just the new records each cycle. I pull the REST API data on a configured schedule. All three sources stage into Snowflake via a COPY INTO and then land into the raw layer. I used Prefect to orchestrate scheduling and to rerun the work if it is interrupted. 
 
 Future work that I could do would be to use an AWS Lambda/Azure Function to pull the REST API data each time that the count of records to pull reach a threshold for working at peak hours to prevent backlogs.
 
@@ -116,17 +116,17 @@ Before the data is finally consumed, I wrote dbt tests to make sure that the joi
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/[TODO: your-username]/[TODO: your-repo-name].git
-cd [TODO: your-repo-name]
+git clone https://github.com/JonasButikofer/end-to-end-data-engineering.git
+cd end-to-end-data-engineering
 
 # 2. Configure environment
 cp .env.sample .env
 # Edit .env with your Snowflake credentials
 
-# 3. Create raw tables in Snowflake
-# The ETL processor creates Snowflake stages automatically on first run.
-# PostgreSQL source tables are initialized via processor/init.sql —
-# Docker Compose runs this automatically when the processor container starts.
+# 3. Create the Snowflake raw layer
+# Log into Snowflake and run the SQL in snowflake/setup.sql to create the
+# database, schemas (RAW_EXT, ADVENTURE_DB, ECOM, REAL_TIME, WEB_ANALYTICS),
+# warehouse, role, and stages. The ETL processor then handles COPY INTO on first run.
 
 # 4. Start all services
 docker compose up -d
@@ -174,21 +174,22 @@ I deployed a dbt MCP server that exposes all 18 models to AI agents, enabling na
 
 | Metric | Value |
 |--------|-------|
-| Raw records processed per cycle | [TODO: query your raw tables] |
-| Pipeline execution time | [TODO: time your Docker Compose run] |
-| dbt models | [TODO: run `dbt ls --resource-type model \| wc -l`] |
-| dbt tests | [TODO: run `dbt ls --resource-type test \| wc -l`] |
-| Test pass rate | [TODO: run `dbt test` and report pass/fail] |
-| Data sources integrated | [TODO: count from sources.yml] |
-| Source tables | [TODO: count] |
-| Models exposed via MCP | [TODO: count from demo script output] |
-| Source freshness SLA | [TODO: your freshness threshold] |
+| Raw records processed per cycle | 44974 |
+| Pipeline execution time | 37.58 seconds |
+| dbt models | 18 |
+| dbt tests | 28 |
+| Test pass rate | 100% |
+| Data sources integrated | 3 |
+| Source tables | 13 |
+| Models exposed via MCP | 18 |
+| Source freshness SLA | 24 hours |
 
 ---
 
 ## What I Learned
 
-This was a massive undertaking that took me several weeks to engineer. There were so many complex parts that I did not understand and had to pause for hours at a time to fully understand — such as fully understanding the progression from base --> staging --> intermediate. I had to learn several new tools to get everything working from Snowflake to Prefect to dbt. I was genuinely amazed at the performance of my AI agent once I attached it to my MCP; I was able to trace model changes and follow all of my work that I spent weeks building. As a Data Engineer I learned that context and documentation are more important than than the technology; I can easily learn a new technology, but not being able to easily navigate what I have previously built and know how it affects the warehouse as a whole is what would prevent me from actually having an impact. 
+This was a massive undertaking that took me several weeks to engineer. There were so many complex parts that I did not understand and had to pause for hours at a time to fully understand — such as fully understanding the progression from base --> staging --> intermediate. I had to learn several new tools to get everything working from Snowflake to Prefect to dbt. I was genuinely amazed at the performance of my AI agent once I attached it to my MCP; I was able to trace model changes and follow all of my work that I spent weeks building. As a Data Engineer I learned that context and documentation are more important than the technology; I can easily learn a new technology, but not being able to easily navigate what I have previously built and know how it affects the warehouse as a whole is what would prevent me from actually having an impact.
+
 ---
 
 ## Future Improvements
