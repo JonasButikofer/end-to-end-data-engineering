@@ -64,7 +64,7 @@ flowchart TD
 
 ## Problem Statement
 
-[TODO: Describe the business problem this platform solves. What data is spread across which systems? What questions can't stakeholders answer today? How does your platform address this? Aim for 3-5 sentences.]
+Adventure Works generates sales data across three disconnected systems: a legacy PostgreSQL database, a MongoDB e-commerce store, and a real-time order REST API. Without a unified pipeline, answering questions like "which marketing campaigns drove the most revenue?" requires manual multi-system queries that are slow, error-prone, and inaccessible to non-technical stakeholders. This platform solves that by ingesting all three sources into a Snowflake data warehouse and exposing the cleaned data through both dashboards and an AI-accessible MCP server, enabling anyone in the organization to query the warehouse in plain English.
 
 ---
 
@@ -72,26 +72,35 @@ flowchart TD
 
 | Layer | Technology | Why |
 |-------|-----------|-----|
-| Source Systems | PostgreSQL, MongoDB, REST API | [TODO: Why do these represent real-world diversity?] |
-| Extraction | Python ETL Processor | [TODO: Why a custom processor? What patterns does it use (e.g., watermarks)?] |
-| Warehouse | Snowflake | [TODO: Why Snowflake specifically? Think about compute/storage separation, semi-structured data support, etc.] |
-| Transformation | dbt | [TODO: Why dbt? Think about testing, documentation, lineage, version control.] |
-| Orchestration | Prefect | [TODO: Why Prefect over alternatives? Think about retries, logging, simplicity.] |
-| CI/CD | dbt Cloud + GitHub | [TODO: What does this give you? Automated builds, scheduled runs, etc.] |
-| Agent Access | dbt MCP Server | [TODO: What does MCP enable? How does it expose your models to AI agents?] |
-| Containerization | Docker Compose | [TODO: Why Docker? Think about reproducibility.] |
+| Source Systems | PostgreSQL, MongoDB, REST API | These technologies are the most common data sources that a Data Engineer will find in the real world. I used these to best simulate an organization's environment.  |
+| Extraction | Python ETL Processor | I built a custom Python ETL processor that uses watermarks to track the last extracted record from PostgreSQL and MongoDB, so only new data moves each cycle. This keeps source system load low and makes the pipeline efficient enough to run on a schedule without full refreshes. |
+| Warehouse | Snowflake | Snowflake allows for a seperation of compute and storage that fits my use case of occasional data processing. Snowflake also has native dbt integration that allows for easy data manipulation in a modern cloud platform.  |
+| Transformation | dbt | I am using dbt to enable data quality through native testing. It also is easy to document for future user. Additionally, while developing the warehouse I used version control to make changes and guarentee my data was moving through the warehouse correctly. Finally, the ability to trace data lineage easily with dbt makes it an obvious choice because data becomes more reporducable and less of a blackbox when you can see where a dashboard is pulling its data from. |
+| Orchestration | Prefect | I chose Prefect as my orchestrator because of it easily allows for rerunning interupted jobs and is a low complexity environment that beginning engineers can quickly learn and navigate to allow for minimal startup time.  |
+| CI/CD | dbt Cloud + GitHub | I used these for version control and automated warehouse builds while the pipeline is live. This allows for near instant updates as code is pushed. Implementing dbt Cloud also prevents code changes from affecting the production environment if tests are failing, adding a layer of protection to the warehouse. |
+| Agent Access | dbt MCP Server | The MCP server prepares the data to be seen by AI agents for easy querying, lineage understanding, asking for downstream effects of warehouse changes, and helping new engineers quickly become familiar with complex pipelines. MCP servers also require deep documentation, pushing data warehouses to accessible.  |
+| Containerization | Docker Compose | This pipeline does not run solely on my machine. Docker containers enable reproducability of this pipeline onto any infrastructure so it can be migrated, agnostic to what an organization's prefered system. |
 
 ---
 
 ## Data Flow
 
-[TODO: Describe the end-to-end data flow in 2-3 paragraphs. Cover:
 
-**Paragraph 1 — Ingestion:** How does data enter the platform from each source? What extraction strategy do you use (watermarks, full refresh)? How is data staged and loaded into Snowflake?
+**Ingestion:** 
 
-**Paragraph 2 — Transformation:** What happens in the dbt layers? What do staging models do (cleaning, casting, renaming)? What do intermediate models do (joining across sources)? Give specific model names.
+I pull data from the MongoDB and PostgreSQL databases using a timestamp watermark that makes the system more efficient and clean by not pulling all records each time, just the new records each cycle. I pull the REST API data on a configured schedule. All three sources stage into Snowflake via a COPY INTO and then land into the raw layer. I used Prefect to orchestrate scheduling and to rerun the work if it is interupted. 
 
-**Paragraph 3 — Serving:** How is the final data consumed? Dashboards? MCP server? How does testing and CI/CD fit in?]
+Future work that I could do would be to use an AWS Lambda/Azure Function to pull the REST API data each time that the count of records to pull reach a threshold for working at peak hours to prevent backlogs.
+
+**Transformation:**  
+
+For the MongoDB data that comes in as JSON VARIANT type, I used base models to turn that data into standard columns that I can later clean. I then used staging models to clean, cast, and rename the data to get it into a standard format. An example of this is the stg_real_time__chat_logs model that casts the data from parsed JSON columns into the appropriate data types and renames columns to match other staging models that it will later be joined on. I finally added the intermediate models to join data together (to pre-aggregate data to make future consumption easier) and enriched the data to get customer business case columns prepared at a lower latency and compute cost than recreating it on dashboards later in the pipeline. An example of this is the int_web_analytics_with_customers model that connects the web sessions (found in the stg_web_analytics model) to the customers (from the stg_adventure_db__customers model).
+
+**Serving:** 
+
+Before the data is finally consumed, I wrote dbt tests to make sure that the join relationships between the different models were correct, test to make sure that there are no null values in appropriate columns (such as product_id), unique values where they should be unique (like with customer_id), and other custom business logic tests like checking for negative inventory and freshness checks in the data. Those tests were automated with dbt Cloud that runs on a schedule and with each PR. I created a dashboard with Snowsight (Snowflake's dashboard platform) that lets stakeholders see into data insights coming in from the pipeline. Finally, I created a MCP that exposes the data models to AI agents for lineage exploration and natural language querying. 
+
+
 
 ---
 
@@ -135,16 +144,7 @@ uv run python demo_client.py
 
 ### Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `SNOWFLAKE_ACCOUNT` | Full Snowflake account identifier (e.g., `ab12345.us-east-1`) |
-| `SNOWFLAKE_USER` | Snowflake username |
-| `SNOWFLAKE_PASSWORD` | Snowflake password |
-| `SNOWFLAKE_WAREHOUSE` | Compute warehouse name (e.g., `COMPUTE_WH`) |
-| `SNOWFLAKE_DATABASE` | Target database (e.g., `IS566`) |
-| `SNOWFLAKE_ROLE` | Snowflake role (default: `ACCOUNTADMIN`) |
-
-See `.env.sample` for the full list.
+Copy `.env.sample` to `.env.dev` (local) and `.env.docker` (Docker services) and fill in your credentials. See `.env.sample` for the full variable list.
 
 ---
 
@@ -181,8 +181,7 @@ See `.env.sample` for the full list.
 
 ## What I Learned
 
-[TODO: Write 4-6 sentences of genuine reflection. What surprised you? What was harder than expected? What would you do differently if starting over? What did you learn about data engineering as a discipline — not just the tools, but the craft? Avoid generic platitudes; be specific to YOUR experience.]
-
+This was a massive undertaking that took me several weeks to engineer. There were so many complex parts that I did not understand and had to pause for hours at a time to fully understand--such as fully understanding the progression from base --> staging --> intermediate. I had to learn several new tools to get everything working from Snowflake to Prefect to dbt. I was genuinely amazed at the performance of my AI agent once I attached it to my MCP; I was able to trace model changes and follow all of my work that I spent weeks building. As a Data Engineer I learned that context and documentation are more important than than the technology; I can easily learn a new technology, but not being able to easily navigate what I have previously built and know how it affects the warehouse as a whole is what would prevent me from actually having an impact. 
 ---
 
 ## Future Improvements
