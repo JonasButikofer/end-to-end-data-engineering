@@ -124,7 +124,9 @@ cp .env.sample .env
 # Edit .env with your Snowflake credentials
 
 # 3. Create raw tables in Snowflake
-# [TODO: describe how to set up the raw tables]
+# The ETL processor creates Snowflake stages automatically on first run.
+# PostgreSQL source tables are initialized via processor/init.sql —
+# Docker Compose runs this automatically when the processor container starts.
 
 # 4. Start all services
 docker compose up -d
@@ -134,7 +136,9 @@ cd dbt
 dbt build
 
 # 6. Start the MCP server
-# [TODO: your MCP server start command]
+cd dbt
+$env:MCP_TRANSPORT="sse"; $env:DBT_PROJECT_DIR="."; $env:DBT_PROFILES_DIR="."; uvx dbt-mcp
+# Server runs at http://localhost:8000/sse — leave this terminal open
 
 # 7. (Optional) Run the MCP demo
 cd mcp
@@ -151,13 +155,16 @@ Copy `.env.sample` to `.env.dev` (local) and `.env.docker` (Docker services) and
 ## Project Milestones
 
 ### Milestone 1: Core Pipeline
-[TODO: Summarize what you built in Milestone 1. Cover: ETL extraction sources, staging models created, intermediate models created, data quality tests implemented. Be specific — name your models and mention counts.]
+
+I built the foundational extraction and transformation pipeline connecting all three source systems. The Python ETL processor pulls from PostgreSQL and MongoDB using watermarks, and stages REST API order data into Snowflake. I created 11 staging models across three source schemas (`adventure_db`, `ecom`, `real_time`), 4 base models to parse MongoDB and API JSON VARIANT data, and 3 intermediate models (`int_sales_orders_with_campaign`, `int_sales_order_with_customers`, `int_sales_order_line_items`) that join data across sources. I also implemented the initial suite of dbt tests covering nullability, uniqueness, and relationship integrity.
 
 ### Milestone 2: Orchestration, Quality, and Agent-Assisted Development
-[TODO: Summarize what you added in Milestone 2. Cover: Prefect orchestration, dbt Cloud integration, new models (web analytics), source freshness, dashboards.]
+
+I added Prefect to orchestrate the pipeline on a schedule and handle retries automatically. I integrated dbt Cloud to run scheduled builds and block deploys when tests fail. I also built out the web analytics pipeline, adding `stg_web_analytics` and `int_web_analytics_with_customers` to tie session data to known customers. Source freshness checks were added to alert on stale data, and I created a Snowsight dashboard for stakeholder visibility.
 
 ### Milestone 3: Agent Access and Portfolio
-[TODO: Summarize what you completed in Milestone 3. Cover: MCP server deployment, documentation upgrades, demo client, portfolio finalization.]
+
+I deployed a dbt MCP server that exposes all 18 models to AI agents, enabling natural language querying and lineage exploration without needing to know SQL. I upgraded model and column documentation across the project to be agent-friendly — explicitly documenting join keys, filters, and enum values that agents need to reason about the data correctly. I also built and ran a Python demo client that walks through the full MCP tool set end to end.
 
 ---
 
@@ -181,14 +188,14 @@ Copy `.env.sample` to `.env.dev` (local) and `.env.docker` (Docker services) and
 
 ## What I Learned
 
-This was a massive undertaking that took me several weeks to engineer. There were so many complex parts that I did not understand and had to pause for hours at a time to fully understand--such as fully understanding the progression from base --> staging --> intermediate. I had to learn several new tools to get everything working from Snowflake to Prefect to dbt. I was genuinely amazed at the performance of my AI agent once I attached it to my MCP; I was able to trace model changes and follow all of my work that I spent weeks building. As a Data Engineer I learned that context and documentation are more important than than the technology; I can easily learn a new technology, but not being able to easily navigate what I have previously built and know how it affects the warehouse as a whole is what would prevent me from actually having an impact. 
+This was a massive undertaking that took me several weeks to engineer. There were so many complex parts that I did not understand and had to pause for hours at a time to fully understand — such as fully understanding the progression from base --> staging --> intermediate. I had to learn several new tools to get everything working from Snowflake to Prefect to dbt. I was genuinely amazed at the performance of my AI agent once I attached it to my MCP; I was able to trace model changes and follow all of my work that I spent weeks building. As a Data Engineer I learned that context and documentation are more important than than the technology; I can easily learn a new technology, but not being able to easily navigate what I have previously built and know how it affects the warehouse as a whole is what would prevent me from actually having an impact. 
 ---
 
 ## Future Improvements
 
-- **[TODO: Improvement 1 title]**: [TODO: Describe a specific improvement you'd make. Why would it matter? What problem would it solve?]
-- **[TODO: Improvement 2 title]**: [TODO: Describe another improvement.]
-- **[TODO: Improvement 3 title]**: [TODO: Describe another improvement.]
+- **Role-Based MCP Access Controls**: Right now the MCP server exposes all models to anyone who can reach it. In a real organization I would implement role-based access so that a marketing manager can query campaign data but cannot see financial or PII columns that are restricted to analysts and engineers. This would also include audit logging so every query is traceable back to a user.
+- **Threshold-Based Ingestion via Cloud Functions**: The current watermark-based processor runs on a fixed schedule. I would replace the fixed interval with an AWS Lambda or Azure Function that triggers ingestion when the count of unprocessed records crosses a threshold — keeping latency low at peak hours without wasting compute during quiet periods.
+- **Snowflake-Native MCP**: The dbt MCP server is limited to manifest-based metadata tools when the Snowflake warehouse is suspended, because the `show` tool requires live compute to execute queries. Replacing it with a Snowflake-native MCP would allow the agent to run SQL directly against the warehouse with full control over compute, removing that dependency and making live querying reliable.
 
 ---
 

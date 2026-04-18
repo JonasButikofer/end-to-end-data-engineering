@@ -18,3 +18,10 @@ tests_sol/
 *.sol*
 *_sol*
 __pycache__
+scratch.sql
+instructions.md
+CLAUDE.md
+.mcp.json
+INTERVIEW-LOG.md
+BRIEF.md
+PRD.md
